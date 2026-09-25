@@ -7,6 +7,9 @@ import type { GetResultContentParams } from '@/api/results'
 import { useWebSocket } from '@/composables/useWebSocket'
 import * as tasksApi from '@/api/tasks'
 
+// 合并视图哨兵值：选中时聚合所有任务的结果（按商品ID去重、前端排序）
+export const ALL_FILES = '__all__'
+
 export function useResults() {
   const { t } = useI18n()
   const route = useRoute()
@@ -76,13 +79,68 @@ export function useResults() {
         return
       }
 
-      selectedFile.value = fileList[0] || null
+      // 默认进入合并视图，一次看全部任务的结果
+      selectedFile.value = fileList.length > 0 ? ALL_FILES : null
     } catch (e) {
       if (e instanceof Error) error.value = e
     } finally {
       hasFetchedFiles.value = true
       scheduleFileOptionsReady()
     }
+  }
+
+  function parsePriceValue(value: unknown): number {
+    if (typeof value === 'number') return value
+    const n = parseFloat(String(value ?? '').replace(/[^\d.]/g, ''))
+    return Number.isFinite(n) ? n : 0
+  }
+
+  function parseTimeValue(value: unknown): number {
+    if (!value) return 0
+    return Date.parse(String(value).replace(' ', 'T')) || 0
+  }
+
+  function sortMerged(items: ResultItem[]): ResultItem[] {
+    const dir = filters.sort_order === 'asc' ? 1 : -1
+    const key = filters.sort_by
+    return items.sort((a, b) => {
+      let av = 0
+      let bv = 0
+      if (key === 'price') {
+        av = parsePriceValue(a.商品信息?.['当前售价'])
+        bv = parsePriceValue(b.商品信息?.['当前售价'])
+      } else if (key === 'keyword_hit_count') {
+        av = a.ai_analysis?.keyword_hit_count ?? 0
+        bv = b.ai_analysis?.keyword_hit_count ?? 0
+      } else if (key === 'publish_time') {
+        av = parseTimeValue(a.商品信息?.['发布时间'])
+        bv = parseTimeValue(b.商品信息?.['发布时间'])
+      } else {
+        av = parseTimeValue(a['爬取时间'])
+        bv = parseTimeValue(b['爬取时间'])
+      }
+      return (av - bv) * dir
+    })
+  }
+
+  function mergeAndDedupe(lists: ResultItem[][]): ResultItem[] {
+    const byId = new Map<string, ResultItem>()
+    for (const list of lists) {
+      for (const item of list) {
+        const id =
+          item.商品信息?.['商品ID'] || item.商品信息?.['商品链接'] || JSON.stringify(item).slice(0, 128)
+        const prev = byId.get(id)
+        if (!prev) {
+          byId.set(id, item)
+          continue
+        }
+        // 同一商品被多个任务命中时，保留"推荐"优先的那条
+        const prevRec = prev.ai_analysis?.is_recommended ? 1 : 0
+        const curRec = item.ai_analysis?.is_recommended ? 1 : 0
+        if (curRec > prevRec) byId.set(id, item)
+      }
+    }
+    return [...byId.values()]
   }
 
   async function fetchResults() {
@@ -95,6 +153,18 @@ export function useResults() {
     isLoading.value = true
     error.value = null
     try {
+      if (selectedFile.value === ALL_FILES) {
+        // 合并视图：并行拉取所有任务的结果，前端去重 + 排序
+        const params = { ...filters, page: 1, limit: 100 }
+        const responses = await Promise.all(
+          files.value.map((file) =>
+            resultsApi.getResultContent(file, params).catch(() => ({ total_items: 0, items: [] as ResultItem[] }))
+          )
+        )
+        results.value = sortMerged(mergeAndDedupe(responses.map((r) => r.items)))
+        totalItems.value = results.value.length
+        return
+      }
       const data = await resultsApi.getResultContent(selectedFile.value, {
         ...filters,
         page: page.value,
@@ -112,7 +182,7 @@ export function useResults() {
   }
 
   async function fetchInsights() {
-    if (!selectedFile.value) {
+    if (!selectedFile.value || selectedFile.value === ALL_FILES) {
       insights.value = null
       return
     }
@@ -126,7 +196,7 @@ export function useResults() {
   }
 
   async function fetchBlacklistRules() {
-    if (!selectedFile.value) {
+    if (!selectedFile.value || selectedFile.value === ALL_FILES) {
       blacklistKeywords.value = []
       return
     }
@@ -194,7 +264,7 @@ export function useResults() {
   }
 
   function exportSelectedResults() {
-    if (!selectedFile.value) return
+    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
     resultsApi.downloadResultExport(selectedFile.value, { ...filters })
   }
 
@@ -221,7 +291,7 @@ export function useResults() {
   }
 
   async function toggleItemBlock(item: ResultItem) {
-    if (!selectedFile.value) return
+    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
     const itemId = item.商品信息?.商品ID
     if (!itemId) return
     const newStatus = item._status === 'hidden' ? 'active' : 'hidden'
@@ -234,7 +304,7 @@ export function useResults() {
   }
 
   async function saveBlacklistRules(keywords: string[]) {
-    if (!selectedFile.value) return
+    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
     isSavingBlacklist.value = true
     error.value = null
     try {
@@ -273,8 +343,8 @@ export function useResults() {
     { immediate: true }
   )
 
-  const fileOptions = computed(() =>
-    files.value.map((file) => {
+  const fileOptions = computed(() => {
+    const perTask = files.value.map((file) => {
       const keyword = getKeywordFromFilename(file)
       const taskName = taskNameByKeyword.value[keyword]
       return {
@@ -285,7 +355,12 @@ export function useResults() {
         }),
       }
     })
-  )
+    if (perTask.length === 0) return perTask
+    return [
+      { value: ALL_FILES, taskName: '', label: t('results.filters.allFiles') },
+      ...perTask,
+    ]
+  })
 
   // Lifecycle
   onMounted(() => {

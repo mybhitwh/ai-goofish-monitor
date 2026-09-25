@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResults } from '@/composables/useResults'
+import { useResults, ALL_FILES } from '@/composables/useResults'
 import ResultsFilterBar from '@/components/results/ResultsFilterBar.vue'
 import ResultsGrid from '@/components/results/ResultsGrid.vue'
 import ResultsInsightsPanel from '@/components/results/ResultsInsightsPanel.vue'
@@ -42,6 +42,8 @@ const isDeleteDialogOpen = ref(false)
 const isBlacklistDialogOpen = ref(false)
 const blacklistDraft = ref('')
 
+const isAllMode = computed(() => selectedFile.value === ALL_FILES)
+
 const selectedTaskLabel = computed(() => {
   if (!selectedFile.value || fileOptions.value.length === 0) return null
   const match = fileOptions.value.find((option) => option.value === selectedFile.value)
@@ -56,22 +58,20 @@ const deleteConfirmText = computed(() => {
 })
 
 function openDeleteDialog() {
-  if (!selectedFile.value) {
-    toast({
-      title: t('results.filters.noResultToDelete'),
-      variant: 'destructive',
-    })
+  if (isAllMode.value || !selectedFile.value) {
+    if (isAllMode.value) {
+      toast({ title: t('results.filters.allModeTaskScoped') })
+    }
     return
   }
   isDeleteDialogOpen.value = true
 }
 
 function openBlacklistDialog() {
-  if (!selectedFile.value) {
-    toast({
-      title: t('results.filters.noResultSelected'),
-      variant: 'destructive',
-    })
+  if (isAllMode.value || !selectedFile.value) {
+    if (isAllMode.value) {
+      toast({ title: t('results.filters.allModeTaskScoped') })
+    }
     return
   }
   blacklistDraft.value = blacklistKeywords.value.join('\n')
@@ -79,14 +79,21 @@ function openBlacklistDialog() {
 }
 
 function handleExportResults() {
-  if (!selectedFile.value) {
-    toast({
-      title: t('results.filters.noResultToExport'),
-      variant: 'destructive',
-    })
+  if (isAllMode.value || !selectedFile.value) {
+    if (isAllMode.value) {
+      toast({ title: t('results.filters.allModeTaskScoped') })
+    }
     return
   }
   exportSelectedResults()
+}
+
+function handleToggleBlock(item: Parameters<typeof toggleItemBlock>[0]) {
+  if (isAllMode.value) {
+    toast({ title: t('results.filters.allModeTaskScoped') })
+    return
+  }
+  toggleItemBlock(item)
 }
 
 async function handleDeleteResults() {
@@ -149,6 +156,7 @@ async function handleSaveBlacklistRules() {
       v-model:sortBy="filters.sort_by"
       v-model:sortOrder="filters.sort_order"
       :is-loading="isLoading"
+      :is-all-mode="isAllMode"
       @refresh="refreshResults"
       @manage-blacklist="openBlacklistDialog"
       @export="handleExportResults"
@@ -157,7 +165,7 @@ async function handleSaveBlacklistRules() {
 
     <ResultsInsightsPanel :insights="insights" :selected-task-label="selectedTaskLabel" />
 
-    <ResultsGrid :results="results" :is-loading="isLoading" @toggle-block="toggleItemBlock" />
+    <ResultsGrid :results="results" :is-loading="isLoading" @toggle-block="handleToggleBlock" />
 
     <Dialog v-model:open="isDeleteDialogOpen">
       <DialogContent class="sm:max-w-[420px]">

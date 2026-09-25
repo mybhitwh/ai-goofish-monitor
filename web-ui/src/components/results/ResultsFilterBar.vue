@@ -29,6 +29,7 @@ interface Props {
   sortOrder: 'asc' | 'desc'
   isLoading: boolean
   isReady: boolean
+  isAllMode?: boolean
 }
 
 const props = defineProps<Props>()
@@ -186,7 +187,7 @@ function handleToggleKeywordRecommended(value: boolean) {
         <Button
           variant="outline"
           @click="emit('manage-blacklist')"
-          :disabled="props.isLoading || !props.selectedFile"
+          :disabled="props.isLoading || !props.selectedFile || props.isAllMode"
         >
           {{ t('results.filters.manageBlacklist') }}
         </Button>
@@ -194,7 +195,7 @@ function handleToggleKeywordRecommended(value: boolean) {
         <Button
           variant="outline"
           @click="emit('export')"
-          :disabled="props.isLoading || !props.selectedFile"
+          :disabled="props.isLoading || !props.selectedFile || props.isAllMode"
         >
           {{ t('results.filters.exportCsv') }}
         </Button>
@@ -202,7 +203,7 @@ function handleToggleKeywordRecommended(value: boolean) {
         <Button
           variant="destructive"
           @click="emit('delete')"
-          :disabled="props.isLoading || !props.selectedFile"
+          :disabled="props.isLoading || !props.selectedFile || props.isAllMode"
         >
           {{ t('results.filters.deleteResult') }}
         </Button>
