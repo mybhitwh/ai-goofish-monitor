@@ -37,3 +37,15 @@
 - 复制 `.env.example` 为 `.env`，设置必填项 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL_NAME` 等。
 - 不要提交真实凭据或 cookies（如 `state.json`）；Playwright 需本地浏览器，Docker 镜像已预装 Chromium。
 - Web 认证默认 `admin/admin123`，生产环境务必修改，推荐启用 HTTPS 并限制访问来源。
+
+## u12 开发主仓环境约定（2026-09-25 起，ZCode 必读）
+- Python：一律用仓库根 `.venv/bin/python`（系统 python3 是 3.10，项目依赖只装在 .venv）。
+- 前端：包管理器用 **pnpm**；改 `web-ui/` 后必须重建产物：`cd web-ui && pnpm build`（输出到根 `dist/`，SPA 服务依赖它）。
+- 测试：`.venv/bin/python -m pytest tests/ -s`；基线为 127 passed / 6 failed（failed 均为存量，非新增回归）。
+- 本仓库同时是生产实例（systemd `goofish.service`）：
+  - 重启：`sudo systemctl restart goofish`（u12 已配 NOPASSWD sudo）
+  - 健康检查三件套：`systemctl is-active goofish` / `curl 127.0.0.1:8000/api/groups` 返回 JSON / `curl 127.0.0.1:8080/goofish/` 返回 200
+- ⚠️ 运行时状态，禁止提交/覆盖/重置：`data/`（app.sqlite3 业务库）、`state/`（闲鱼登录态）、`.env`（密钥）。
+- ⚠️ 提交纪律：中文 Conventional Commits；`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖` 与 prompts CRLF 规范化两个提交被 systemd 单元依赖，rebase/reset 后认 message 不认 sha。
+- git 网络：GitHub 走全局代理（`http.https://github.com/.proxy = 127.0.0.1:7897`，Clash）；fetch/push 失败先查代理与退出码，**管道后必须显式查 rc，防吞错假绿**。
+- remote 口径：`origin` = fork mybhitwh/ai-goofish-monitor（推送目标）；上游 Usagi-org 仅 Windows 侧配置。
