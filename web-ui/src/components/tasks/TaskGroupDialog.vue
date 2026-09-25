@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Layers, Pencil, Play, Plus, Trash2, X } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Layers, Pencil, Play, Plus, Trash2, X } from 'lucide-vue-next'
 
 const props = defineProps<{
   open: boolean
@@ -31,6 +31,7 @@ const emit = defineEmits<{
   (e: 'remove', groupId: number): void
   (e: 'start', groupId: number): void
   (e: 'stop', groupId: number): void
+  (e: 'membership', groupId: number, taskId: number, member: boolean): void
 }>()
 
 const { t } = useI18n()
@@ -56,6 +57,29 @@ const taskCountByGroup = computed(() => {
   })
   return counts
 })
+
+// 成员管理：展开的组 id 集合
+const expandedMembers = ref<Set<number>>(new Set())
+
+function toggleMembers(groupId: number) {
+  const next = new Set(expandedMembers.value)
+  if (next.has(groupId)) {
+    next.delete(groupId)
+  } else {
+    next.add(groupId)
+  }
+  expandedMembers.value = next
+}
+
+const isMember = (task: Task, groupId: number) => task.group_id === groupId
+
+function handleMembership(task: Task, groupId: number, member: boolean) {
+  if (task.is_running) {
+    toast({ title: t('tasks.groups.memberRunning'), variant: 'destructive' })
+    return
+  }
+  emit('membership', groupId, task.id, member)
+}
 
 function startCreate() {
   editing.value = 'new'
@@ -199,7 +223,53 @@ watch(
                   {{ group.cron || t('tasks.groups.noCron') }}
                 </span>
                 <span>·</span>
-                <span>{{ t('tasks.groups.memberCount', { count: taskCountByGroup.get(group.id) || 0 }) }}</span>
+                <button
+                  class="inline-flex items-center gap-1 font-semibold text-violet-600 hover:text-violet-700"
+                  @click="toggleMembers(group.id)"
+                >
+                  <component :is="expandedMembers.has(group.id) ? ChevronDown : ChevronRight" class="h-3 w-3" />
+                  {{ t('tasks.groups.memberCount', { count: taskCountByGroup.get(group.id) || 0 }) }}
+                </button>
+              </div>
+
+              <!-- 成员管理：勾选加入 / 取消移出 -->
+              <div
+                v-if="expandedMembers.has(group.id)"
+                class="mt-2.5 space-y-1 rounded-lg border border-violet-100 bg-white/80 p-2.5"
+              >
+                <p class="text-[11px] font-semibold text-slate-400">{{ t('tasks.groups.membersHint') }}</p>
+                <label
+                  v-for="task in tasks"
+                  :key="task.id"
+                  class="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-violet-50/60"
+                >
+                  <input
+                    type="checkbox"
+                    class="h-3.5 w-3.5 accent-violet-600"
+                    :checked="isMember(task, group.id)"
+                    @change="(e) => handleMembership(task, group.id, (e.target as HTMLInputElement).checked)"
+                  />
+                  <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
+                    {{ task.task_name }}
+                  </span>
+                  <Badge
+                    v-if="task.group_id != null && task.group_id !== group.id"
+                    variant="outline"
+                    class="border-none bg-slate-100 px-1.5 py-0 text-[10px] font-bold text-slate-400"
+                  >
+                    {{ t('tasks.groups.inOtherGroup') }}
+                  </Badge>
+                  <Badge
+                    v-if="task.is_running"
+                    variant="outline"
+                    class="border-none bg-emerald-50 px-1.5 py-0 text-[10px] font-bold text-emerald-600"
+                  >
+                    {{ t('common.running') }}
+                  </Badge>
+                </label>
+                <p v-if="tasks.length === 0" class="px-1.5 py-2 text-xs text-slate-400">
+                  {{ t('tasks.groups.noTasksAvailable') }}
+                </p>
               </div>
             </div>
             <div class="flex shrink-0 items-center gap-1.5">

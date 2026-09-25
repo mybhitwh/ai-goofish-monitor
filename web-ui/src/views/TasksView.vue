@@ -252,6 +252,24 @@ async function handleRemoveGroup(groupId: number) {
   }
 }
 
+async function handleGroupMembership(groupId: number, taskId: number, member: boolean) {
+  const task = tasks.value.find((item) => item.id === taskId)
+  if (!task) return
+  const previous = task.group_id
+  task.group_id = member ? groupId : null
+  try {
+    await updateTask(taskId, { group_id: member ? groupId : null })
+    toast({ title: member ? t('tasks.groups.toasts.memberAdded') : t('tasks.groups.toasts.memberRemoved') })
+  } catch (e) {
+    task.group_id = previous
+    toast({
+      title: t('tasks.groups.toasts.saveFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
 async function handleStartGroup(groupId: number) {
   try {
     await startGroup(groupId)
@@ -309,6 +327,7 @@ onMounted(fetchAccountOptions)
       @remove="handleRemoveGroup"
       @start="handleStartGroup"
       @stop="handleStopGroup"
+      @membership="handleGroupMembership"
     />
 
     <!-- Edit Task Dialog -->

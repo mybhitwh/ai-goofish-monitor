@@ -148,6 +148,17 @@ const emit = defineEmits<{
         >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 space-y-2">
+              <Badge
+                v-if="resolveGroup(task)"
+                variant="outline"
+                class="gap-1 border-violet-200 bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700"
+              >
+                <Layers class="h-3 w-3" />
+                {{ resolveGroup(task)?.name }}
+                <span class="font-bold text-violet-400">
+                  · {{ resolveGroup(task)?.execution_mode === 'parallel' ? t('tasks.groups.modeParallel') : t('tasks.groups.modeSerial') }}
+                </span>
+              </Badge>
               <div class="flex flex-wrap items-center gap-2">
                 <h3 class="truncate text-base font-black tracking-tight text-slate-900">
                   {{ task.task_name }}
@@ -161,14 +172,6 @@ const emit = defineEmits<{
                 >
                   <component :is="isKeywordMode(task) ? Keyboard : BrainCircuit" class="mr-1 h-3 w-3" />
                   {{ isKeywordMode(task) ? 'KEYWORD' : 'AI' }}
-                </Badge>
-                <Badge
-                  v-if="resolveGroup(task)"
-                  variant="outline"
-                  class="border-none bg-violet-50 px-2 py-0.5 text-[10px] font-black text-violet-600"
-                >
-                  <Layers class="mr-1 h-3 w-3" />
-                  {{ resolveGroup(task)?.name }}
                 </Badge>
               </div>
 
@@ -382,25 +385,30 @@ const emit = defineEmits<{
             <!-- Column 2: Task Info -->
             <TableCell class="align-middle">
               <div class="flex flex-col gap-1.5 py-1">
+                <!-- 任务组归属：前置主展示 -->
+                <div v-if="resolveGroup(task)" class="flex items-center gap-1">
+                  <Badge
+                    variant="outline"
+                    class="h-5 gap-1 border-violet-200 bg-violet-100 px-2 text-[10px] font-black tracking-tight text-violet-700"
+                  >
+                    <Layers class="h-3 w-3" />
+                    {{ resolveGroup(task)?.name }}
+                    <span class="font-bold text-violet-400">
+                      · {{ resolveGroup(task)?.execution_mode === 'parallel' ? t('tasks.groups.modeParallel') : t('tasks.groups.modeSerial') }}
+                    </span>
+                  </Badge>
+                </div>
                 <div class="flex items-center gap-2">
                   <span class="text-base font-black text-slate-800 tracking-tight group-hover:text-primary transition-colors">{{ task.task_name }}</span>
-                  <Badge 
-                    variant="outline" 
+                  <Badge
+                    variant="outline"
                     :class="[
-                      'h-4 px-1.5 text-[9px] font-black border-none tracking-tighter', 
+                      'h-4 px-1.5 text-[9px] font-black border-none tracking-tighter',
                       isKeywordMode(task) ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-600'
                     ]"
                   >
                     <component :is="isKeywordMode(task) ? Keyboard : BrainCircuit" class="w-2.5 h-2.5 mr-1" />
                     {{ isKeywordMode(task) ? 'KEYWORD' : 'AI ENGINE' }}
-                  </Badge>
-                  <Badge
-                    v-if="resolveGroup(task)"
-                    variant="outline"
-                    class="h-4 px-1.5 text-[9px] font-black border-none tracking-tighter bg-violet-50 text-violet-600"
-                  >
-                    <Layers class="w-2.5 h-2.5 mr-1" />
-                    {{ resolveGroup(task)?.name }}
                   </Badge>
                 </div>
                 
