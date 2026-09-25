@@ -99,6 +99,14 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS item_annotations (
+        link_unique_key TEXT PRIMARY KEY,
+        note TEXT NOT NULL DEFAULT '',
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS task_groups (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,

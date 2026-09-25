@@ -11,6 +11,7 @@ from datetime import datetime
 from src.infrastructure.persistence.sqlite_bootstrap import bootstrap_sqlite_storage
 from src.infrastructure.persistence.sqlite_connection import sqlite_connection
 from src.infrastructure.persistence.storage_names import build_result_filename
+from src.services.item_annotation_service import _load_annotation_map_from_conn
 from src.services.price_history_service import parse_price_value
 from src.services.result_blacklist_service import (
     match_blacklist_keywords,
@@ -120,6 +121,8 @@ def _load_filtered_records_from_conn(
     sort_by: str,
     sort_order: str,
     include_hidden: bool,
+    annotation_tags: list[str] | None = None,
+    has_note: bool = False,
 ) -> list[dict]:
     where_clause, params = _build_query_conditions(
         filename=filename,
@@ -129,7 +132,7 @@ def _load_filtered_records_from_conn(
     order_clause = _sort_expression(sort_by, sort_order)
     rows = conn.execute(
         f"""
-        SELECT raw_json, status
+        SELECT raw_json, status, link_unique_key
         FROM result_items
         WHERE {where_clause}
         ORDER BY {order_clause}
@@ -137,12 +140,23 @@ def _load_filtered_records_from_conn(
         tuple(params),
     ).fetchall()
     blacklist_keywords = _load_blacklist_keywords_from_conn(conn, filename)
+    annotations = _load_annotation_map_from_conn(
+        conn, [str(row["link_unique_key"]) for row in rows]
+    )
+    wanted_tags = {str(tag or "").strip() for tag in (annotation_tags or [])} - {""}
 
     records: list[dict] = []
     for row in rows:
         record = _parse_raw_record(str(row["raw_json"]), status=row["status"])
         decorated = _decorate_record_visibility(record, row["status"], blacklist_keywords)
         if include_hidden or _is_record_visible(decorated):
+            annotation = annotations.get(str(row["link_unique_key"]))
+            decorated["_note"] = annotation.get("note", "") if annotation else ""
+            decorated["_user_tags"] = annotation.get("tags", []) if annotation else []
+            if wanted_tags and not (set(decorated["_user_tags"]) & wanted_tags):
+                continue
+            if has_note and not str(decorated["_note"]).strip():
+                continue
             records.append(decorated)
     return records
 
@@ -263,6 +277,8 @@ async def query_result_records(
     page: int,
     limit: int,
     include_hidden: bool = False,
+    annotation_tags: list[str] | None = None,
+    has_note: bool = False,
 ) -> tuple[int, list[dict]]:
     return await asyncio.to_thread(
         _query_result_records_sync,
@@ -274,6 +290,8 @@ async def query_result_records(
         page,
         limit,
         include_hidden,
+        annotation_tags,
+        has_note,
     )
 
 
@@ -286,6 +304,8 @@ def _query_result_records_sync(
     page: int,
     limit: int,
     include_hidden: bool,
+    annotation_tags: list[str] | None = None,
+    has_note: bool = False,
 ) -> tuple[int, list[dict]]:
     bootstrap_sqlite_storage()
     offset = max(page - 1, 0) * limit
@@ -298,6 +318,8 @@ def _query_result_records_sync(
             sort_by=sort_by,
             sort_order=sort_order,
             include_hidden=include_hidden,
+            annotation_tags=annotation_tags,
+            has_note=has_note,
         )
     total = len(records)
     return total, records[offset: offset + limit]
@@ -311,6 +333,8 @@ async def load_all_result_records(
     sort_by: str,
     sort_order: str,
     include_hidden: bool = False,
+    annotation_tags: list[str] | None = None,
+    has_note: bool = False,
 ) -> list[dict]:
     return await asyncio.to_thread(
         _load_all_result_records_sync,
@@ -320,6 +344,8 @@ async def load_all_result_records(
         sort_by,
         sort_order,
         include_hidden,
+        annotation_tags,
+        has_note,
     )
 
 
@@ -330,6 +356,8 @@ def _load_all_result_records_sync(
     sort_by: str,
     sort_order: str,
     include_hidden: bool,
+    annotation_tags: list[str] | None = None,
+    has_note: bool = False,
 ) -> list[dict]:
     bootstrap_sqlite_storage()
     with sqlite_connection() as conn:
@@ -341,6 +369,8 @@ def _load_all_result_records_sync(
             sort_by=sort_by,
             sort_order=sort_order,
             include_hidden=include_hidden,
+            annotation_tags=annotation_tags,
+            has_note=has_note,
         )
 
 
@@ -473,3 +503,18 @@ def load_visible_result_item_ids(filename: str) -> set[str]:
         if item_id:
             item_ids.add(item_id)
     return item_ids
+
+
+def get_link_unique_keys_by_item_id(filename: str, item_id: str) -> list[str]:
+    """按商品ID反查全局标注键（同一文件内 item_id 正常唯一，返回列表兜底）。"""
+    bootstrap_sqlite_storage()
+    with sqlite_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT link_unique_key
+            FROM result_items
+            WHERE result_filename = ? AND item_id = ?
+            """,
+            (filename, item_id),
+        ).fetchall()
+    return [str(row["link_unique_key"]) for row in rows if row["link_unique_key"]]

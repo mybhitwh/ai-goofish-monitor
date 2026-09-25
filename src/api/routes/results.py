@@ -1,6 +1,8 @@
 """
 结果文件管理路由
 """
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from enum import Enum
@@ -17,6 +19,7 @@ from src.services.result_file_service import (
 from src.services.result_storage_service import (
     build_result_ndjson,
     delete_result_file_records,
+    get_link_unique_keys_by_item_id,
     list_result_filenames,
     load_all_result_records,
     load_result_blacklist_keywords,
@@ -25,6 +28,10 @@ from src.services.result_storage_service import (
     result_file_exists,
     save_result_blacklist_keywords,
     update_item_status,
+)
+from src.services.item_annotation_service import (
+    list_used_tags_sync,
+    update_annotation_sync,
 )
 
 
@@ -79,6 +86,12 @@ async def delete_result_file(filename: str):
     return {"message": f"文件 {filename} 已成功删除"}
 
 
+@router.get("/used-tags")
+async def get_used_tags():
+    """聚合全部已用标签（名称/次数/最近使用），驱动筛选栏与标签候选。"""
+    return {"tags": await asyncio.to_thread(list_used_tags_sync)}
+
+
 @router.get("/{filename}")
 async def get_result_file_content(
     filename: str,
@@ -90,6 +103,8 @@ async def get_result_file_content(
     include_hidden: bool = Query(False),
     sort_by: str = Query("crawl_time"),
     sort_order: str = Query("desc"),
+    tags: str = Query("", description="按自定义标签过滤，逗号分隔，命中任一即返回"),
+    has_note: bool = Query(False),
 ):
     """读取指定的 .jsonl 文件内容，支持分页、筛选和排序"""
     if ai_recommended_only and keyword_recommended_only:
@@ -97,6 +112,8 @@ async def get_result_file_content(
 
     if recommended_only and not ai_recommended_only and not keyword_recommended_only:
         ai_recommended_only = True
+
+    annotation_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
     try:
         validate_result_filename(filename)
@@ -109,6 +126,8 @@ async def get_result_file_content(
             page=page,
             limit=limit,
             include_hidden=include_hidden,
+            annotation_tags=annotation_tags,
+            has_note=has_note,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -146,11 +165,15 @@ async def export_result_file_content(
     include_hidden: bool = Query(False),
     sort_by: str = Query("crawl_time"),
     sort_order: str = Query("desc"),
+    tags: str = Query(""),
+    has_note: bool = Query(False),
 ):
     if ai_recommended_only and keyword_recommended_only:
         raise HTTPException(status_code=400, detail="AI推荐筛选与关键词推荐筛选不能同时开启。")
     if recommended_only and not ai_recommended_only and not keyword_recommended_only:
         ai_recommended_only = True
+
+    annotation_tags = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
     try:
         validate_result_filename(filename)
@@ -161,6 +184,8 @@ async def export_result_file_content(
             sort_by=sort_by,
             sort_order=sort_order,
             include_hidden=include_hidden,
+            annotation_tags=annotation_tags,
+            has_note=has_note,
         )
         csv_text = build_results_csv(
             enrich_records_with_price_insight(results, filename)
@@ -202,6 +227,38 @@ async def patch_item_status(filename: str, item_id: str, body: UpdateStatusReque
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"message": "状态已更新", "status": body.status.value}
+
+
+class UpdateAnnotationRequest(BaseModel):
+    note: str | None = None
+    tags: list[str] | None = None
+
+
+@router.patch("/{filename}/items/{item_id}/annotation")
+async def patch_item_annotation(filename: str, item_id: str, body: UpdateAnnotationRequest):
+    """更新指定商品的备注与自定义标签（按商品全局键存储，重爬不丢）。"""
+    if body.note is None and body.tags is None:
+        raise HTTPException(status_code=400, detail="note 与 tags 至少提供一项")
+    try:
+        validate_result_filename(filename)
+        link_unique_keys = await asyncio.to_thread(
+            get_link_unique_keys_by_item_id, filename, item_id
+        )
+        if not link_unique_keys:
+            raise HTTPException(status_code=404, detail="商品未找到")
+        result: dict = {"note": "", "tags": []}
+        for key in link_unique_keys:
+            result = await asyncio.to_thread(
+                update_annotation_sync,
+                key,
+                note=body.note,
+                tags=body.tags,
+            )
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"message": "标注已更新", **result}
 
 
 @router.get("/{filename}/blacklist-rules")
