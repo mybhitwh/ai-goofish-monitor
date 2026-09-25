@@ -191,6 +191,11 @@ export function useResults() {
     return [...byId.values()]
   }
 
+  /** 给合并视图的每条商品打上来源文件标记，隐藏/恢复时据此路由到对应文件 */
+  function tagSourceFile(items: ResultItem[], filename: string): ResultItem[] {
+    return items.map((item) => ({ ...item, _source_file: filename }))
+  }
+
   async function fetchResults() {
     if (!selectedFile.value) {
       results.value = []
@@ -221,7 +226,8 @@ export function useResults() {
             resultsApi.getResultContent(file, params).catch(() => ({ total_items: 0, items: [] as ResultItem[] }))
           )
         )
-        results.value = sortMerged(mergeAndDedupe(responses.map((r) => r.items)))
+        const merged = responses.map((response, index) => tagSourceFile(response.items, targetFiles[index]))
+        results.value = sortMerged(mergeAndDedupe(merged))
         totalItems.value = results.value.length
         return
       }
@@ -353,12 +359,15 @@ export function useResults() {
   }
 
   async function toggleItemBlock(item: ResultItem) {
-    if (!selectedFile.value || isMergedValue(selectedFile.value)) return
+    if (!selectedFile.value) return
     const itemId = item.商品信息?.商品ID
     if (!itemId) return
+    // 合并视图下按来源文件路由；单任务视图直接用当前选中文件
+    const targetFile = isMergedValue(selectedFile.value) ? item._source_file : selectedFile.value
+    if (!targetFile) return
     const newStatus = item._status === 'hidden' ? 'active' : 'hidden'
     try {
-      await resultsApi.updateItemStatus(selectedFile.value, itemId, newStatus)
+      await resultsApi.updateItemStatus(targetFile, itemId, newStatus)
       await fetchResults()
     } catch (e) {
       if (e instanceof Error) error.value = e

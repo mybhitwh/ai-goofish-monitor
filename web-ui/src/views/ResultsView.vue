@@ -90,10 +90,7 @@ function handleExportResults() {
 }
 
 function handleToggleBlock(item: Parameters<typeof toggleItemBlock>[0]) {
-  if (isAllMode.value) {
-    toast({ title: t('results.filters.allModeTaskScoped') })
-    return
-  }
+  // 合并视图同样支持：toggleItemBlock 内部按商品来源文件路由
   toggleItemBlock(item)
 }
 

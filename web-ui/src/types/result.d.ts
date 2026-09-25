@@ -102,6 +102,8 @@ export interface ResultItem {
   ai_analysis: AiAnalysis;
   price_insight?: PriceInsight;
   _status?: 'active' | 'hidden' | 'expired';
+  /** 合并视图下标记该商品来自哪个结果文件，用于定位隐藏/恢复操作的目标文件 */
+  _source_file?: string;
   _effective_hidden?: boolean;
   _hidden_reason?: 'manual' | 'rule' | 'expired' | null;
   _matched_blacklist_keywords?: string[];
