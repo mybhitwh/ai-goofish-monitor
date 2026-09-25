@@ -83,7 +83,7 @@ const expanded = ref(false)
           type="button"
           @click="emit('toggle-block', props.item)"
           :aria-label="isHidden ? t('results.card.unblock') : t('results.card.block')"
-          class="flex rounded-full bg-white/30 p-1.5 text-white backdrop-blur-md border border-white/40 shadow-sm opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 hover:bg-white/50"
+          class="flex rounded-full bg-black/50 p-1.5 text-white backdrop-blur-md border border-white/25 shadow-md opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 hover:bg-black/70"
         >
           <EyeOff v-if="!isHidden" class="w-4 h-4" />
           <Eye v-else class="w-4 h-4" />
@@ -93,7 +93,7 @@ const expanded = ref(false)
            target="_blank"
            rel="noopener noreferrer"
            :aria-label="t('results.card.detail')"
-           class="flex rounded-full bg-white/30 p-1.5 text-white backdrop-blur-md border border-white/40 shadow-sm opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+           class="flex rounded-full bg-black/50 p-1.5 text-white backdrop-blur-md border border-white/25 shadow-md opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 hover:bg-black/70"
          >
             <ExternalLink class="w-4 h-4" />
          </a>
