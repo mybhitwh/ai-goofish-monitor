@@ -200,4 +200,4 @@ if __name__ == "__main__":
     from src.infrastructure.config.settings import settings
 
     print(f"启动新架构应用，端口: {app_settings.server_port}")
-    uvicorn.run(app, host="0.0.0.0", port=app_settings.server_port)
+    uvicorn.run(app, host=os.getenv("SERVER_HOST", "0.0.0.0"), port=app_settings.server_port)
