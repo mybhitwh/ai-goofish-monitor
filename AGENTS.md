@@ -41,7 +41,7 @@
 ## u12 开发主仓环境约定（2026-09-25 起，ZCode 必读）
 - Python：一律用仓库根 `.venv/bin/python`（系统 python3 是 3.10，项目依赖只装在 .venv）。
 - 前端：包管理器用 **pnpm**；改 `web-ui/` 后必须重建产物：`cd web-ui && pnpm build`（输出到根 `dist/`，SPA 服务依赖它）。
-- 测试：`.venv/bin/python -m pytest tests/ -s`；基线为 127 passed / 6 failed（failed 均为存量，非新增回归）。
+- 测试：`.venv/bin/python -m pytest tests/ -s`；基线：u12 130 passed / 3 failed / 3 skipped（frontend_build_paths、task_group::test_group_update_partial_apply 的 NameError、utils::test_save_to_jsonl——均为存量或平台差异，非新增回归）；Windows 127 passed / 6 failed。
 - 本仓库同时是生产实例（systemd `goofish.service`）：
   - 重启：`sudo systemctl restart goofish`（u12 已配 NOPASSWD sudo）
   - 健康检查三件套：`systemctl is-active goofish` / `curl 127.0.0.1:8000/api/groups` 返回 JSON / `curl 127.0.0.1:8080/goofish/` 返回 200
