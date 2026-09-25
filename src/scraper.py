@@ -403,7 +403,10 @@ async def scrape_user_profile(context, user_id: str) -> dict:
         print("      [采集阶段] 开始采集该用户的商品列表...")
         await random_sleep(2, 4)  # 等待第一页商品API完成
         while not stop_item_scrolling.is_set():
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.wait_for(
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)"),
+                timeout=20,
+            )
             try:
                 await asyncio.wait_for(stop_item_scrolling.wait(), timeout=8)
             except asyncio.TimeoutError:
@@ -419,7 +422,10 @@ async def scrape_user_profile(context, user_id: str) -> dict:
             await random_sleep(3, 5)  # 等待第一页评价API完成
 
             while not stop_rating_scrolling.is_set():
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.wait_for(
+                    page.evaluate("window.scrollTo(0, document.body.scrollHeight)"),
+                    timeout=20,
+                )
                 try:
                     await asyncio.wait_for(stop_rating_scrolling.wait(), timeout=8)
                 except asyncio.TimeoutError:
@@ -581,9 +587,15 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                     print(f"检测到增强浏览器快照，应用环境参数: {state_file}")
                     storage_state_arg = {"cookies": snapshot_data.get("cookies", [])}
                     context_kwargs.update(_build_context_overrides(snapshot_data))
-                    extra_headers = _build_extra_headers(snapshot_data.get("headers"))
-                    if extra_headers:
-                        context_kwargs["extra_http_headers"] = extra_headers
+                    if os.getenv("DISABLE_SNAPSHOT_EXTRA_HEADERS", "false").lower() == "true":
+                        print(
+                            "DISABLE_SNAPSHOT_EXTRA_HEADERS=true：跳过增强快照固定 headers"
+                            "（实测对 mtop XHR 强加静态 Referer/Sec-Fetch-* 会触发闲鱼'非法访问'风控）"
+                        )
+                    else:
+                        extra_headers = _build_extra_headers(snapshot_data.get("headers"))
+                        if extra_headers:
+                            context_kwargs["extra_http_headers"] = extra_headers
                 else:
                     storage_state_arg = snapshot_data
 
@@ -594,12 +606,24 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
             seller_profile_cache = SellerProfileCache(
                 ttl_seconds=_get_seller_profile_cache_ttl(task_config)
             )
+            async def _safe_seller_loader(seller_key: str):
+                """卖家主页采集总闸：任何卡死（如页面无响应）最多等 180s 后放弃，返回空画像。"""
+                try:
+                    return await asyncio.wait_for(
+                        scrape_user_profile(context, seller_key), timeout=180
+                    )
+                except (asyncio.TimeoutError, Exception) as e:
+                    print(
+                        f"   [警告] 卖家 {seller_key} 信息采集超时/失败，跳过画像: {type(e).__name__}"
+                    )
+                    return {}
+
             analysis_dispatcher = ItemAnalysisDispatcher(
                 concurrency=_get_ai_analysis_concurrency(task_config),
                 skip_ai_analysis=SKIP_AI_ANALYSIS,
                 seller_loader=lambda user_id: seller_profile_cache.get_or_load(
                     str(user_id),
-                    lambda seller_key: scrape_user_profile(context, seller_key),
+                    lambda seller_key: _safe_seller_loader(seller_key),
                 ),
                 image_downloader=download_all_images,
                 ai_analyzer=get_ai_analysis,
