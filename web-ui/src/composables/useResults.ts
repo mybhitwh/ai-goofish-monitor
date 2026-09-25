@@ -1,7 +1,7 @@
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import type { ResultInsights, ResultItem } from '@/types/result.d.ts'
+import type { ResultInsights, ResultItem, UsedTag } from '@/types/result.d.ts'
 import type { Task, TaskGroup } from '@/types/task.d.ts'
 import * as resultsApi from '@/api/results'
 import type { GetResultContentParams } from '@/api/results'
@@ -52,23 +52,42 @@ export function useResults() {
   
   const STORAGE_KEY_FILTERS = 'resultFilters'
 
-  function loadPersistedFilters(): Required<Omit<GetResultContentParams, 'page' | 'limit'>> {
-    const defaults: Required<Omit<GetResultContentParams, 'page' | 'limit'>> = {
+  /** 筛选状态：基础参数 + 标注相关（标签多选 / 有备注） */
+  interface ResultFiltersState {
+    recommended_only: boolean
+    ai_recommended_only: boolean
+    keyword_recommended_only: boolean
+    include_hidden: boolean
+    sort_by: NonNullable<GetResultContentParams['sort_by']>
+    sort_order: NonNullable<GetResultContentParams['sort_order']>
+    tags: string[]
+    has_note: boolean
+  }
+
+  function loadPersistedFilters(): ResultFiltersState {
+    const defaults: ResultFiltersState = {
       recommended_only: false,
       ai_recommended_only: false,
       keyword_recommended_only: false,
       include_hidden: false,
       sort_by: 'crawl_time',
       sort_order: 'desc',
+      tags: [],
+      has_note: false,
     }
     try {
       const saved = localStorage.getItem(STORAGE_KEY_FILTERS)
-      if (saved) return { ...defaults, ...JSON.parse(saved) }
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // 兼容旧数据：tags 一定是数组
+        if (!Array.isArray(parsed.tags)) parsed.tags = defaults.tags
+        return { ...defaults, ...parsed }
+      }
     } catch { /* ignore */ }
     return defaults
   }
 
-  const filters = reactive<Required<Omit<GetResultContentParams, 'page' | 'limit'>>>(loadPersistedFilters())
+  const filters = reactive<ResultFiltersState>(loadPersistedFilters())
 
   const isLoading = ref(false)
   const error = ref<Error | null>(null)
@@ -128,7 +147,7 @@ export function useResults() {
       }
 
       // 默认进入第一个任务组（或任务）视图
-      selectedFile.value = fileOptions.value.length > 0 ? fileOptions.value[0].value : null
+      selectedFile.value = fileOptions.value[0]?.value ?? null
     } catch (e) {
       if (e instanceof Error) error.value = e
     } finally {
@@ -220,19 +239,27 @@ export function useResults() {
             groupKeywords.has(getKeywordFromFilename(file))
           )
         }
-        const params = { ...filters, page: 1, limit: 100 }
+        const params = {
+          ...filters,
+          tags: filters.tags.join(','),
+          page: 1,
+          limit: 100,
+        }
         const responses = await Promise.all(
           targetFiles.map((file) =>
             resultsApi.getResultContent(file, params).catch(() => ({ total_items: 0, items: [] as ResultItem[] }))
           )
         )
-        const merged = responses.map((response, index) => tagSourceFile(response.items, targetFiles[index]))
+        const merged = responses.map((response, index) =>
+          tagSourceFile(response.items, targetFiles[index] ?? '')
+        )
         results.value = sortMerged(mergeAndDedupe(merged))
         totalItems.value = results.value.length
         return
       }
       const data = await resultsApi.getResultContent(selectedFile.value, {
         ...filters,
+        tags: filters.tags.join(','),
         page: page.value,
         limit: limit.value,
       })
@@ -333,7 +360,10 @@ export function useResults() {
 
   function exportSelectedResults() {
     if (!selectedFile.value || isMergedValue(selectedFile.value)) return
-    resultsApi.downloadResultExport(selectedFile.value, { ...filters })
+    resultsApi.downloadResultExport(selectedFile.value, {
+      ...filters,
+      tags: filters.tags.join(','),
+    })
   }
 
   async function deleteSelectedFile(filename?: string) {
@@ -368,6 +398,56 @@ export function useResults() {
     const newStatus = item._status === 'hidden' ? 'active' : 'hidden'
     try {
       await resultsApi.updateItemStatus(targetFile, itemId, newStatus)
+      await fetchResults()
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+    }
+  }
+
+  const usedTags = ref<UsedTag[]>([])
+
+  async function fetchUsedTags() {
+    try {
+      const data = await resultsApi.getUsedTags()
+      usedTags.value = data.tags || []
+    } catch { /* 标签候选加载失败不阻塞主流程 */ }
+  }
+
+  function resolveTargetFile(item: ResultItem): string | null {
+    if (!selectedFile.value) return null
+    return isMergedValue(selectedFile.value) ? (item._source_file ?? null) : selectedFile.value
+  }
+
+  /**
+   * 保存商品标注（备注/标签），成功后就地更新本地列表，不整页刷新。
+   * 失败时抛出错误，由调用方负责提示。
+   */
+  async function saveItemAnnotation(
+    item: ResultItem,
+    payload: { note?: string; tags?: string[] },
+  ) {
+    const itemId = item.商品信息?.商品ID
+    const targetFile = resolveTargetFile(item)
+    if (!itemId || !targetFile) return
+    await resultsApi.updateItemAnnotation(targetFile, itemId, payload)
+    if (payload.note !== undefined) item._note = payload.note
+    if (payload.tags !== undefined) item._user_tags = [...payload.tags]
+    fetchUsedTags()
+  }
+
+  /**
+   * 屏蔽商品，可选附带屏蔽理由标签（与已有标签合并后保存）。
+   */
+  async function blockItem(item: ResultItem, reasonTags?: string[]) {
+    const itemId = item.商品信息?.商品ID
+    const targetFile = resolveTargetFile(item)
+    if (!itemId || !targetFile) return
+    try {
+      if (reasonTags && reasonTags.length > 0) {
+        const merged = Array.from(new Set([...(item._user_tags || []), ...reasonTags]))
+        await resultsApi.updateItemAnnotation(targetFile, itemId, { tags: merged })
+      }
+      await resultsApi.updateItemStatus(targetFile, itemId, 'hidden')
       await fetchResults()
     } catch (e) {
       if (e instanceof Error) error.value = e
@@ -438,6 +518,7 @@ export function useResults() {
     fetchFiles()
     fetchTaskNameMap()
     fetchGroups()
+    fetchUsedTags()
   })
 
   return {
@@ -454,6 +535,10 @@ export function useResults() {
     exportSelectedResults,
     deleteSelectedFile,
     toggleItemBlock,
+    usedTags,
+    fetchUsedTags,
+    saveItemAnnotation,
+    blockItem,
     blacklistKeywords,
     isSavingBlacklist,
     saveBlacklistRules,

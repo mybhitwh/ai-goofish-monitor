@@ -7,7 +7,7 @@ interface FetchOptions extends RequestInit {
 // 子路径部署：所有请求统一带上 vite base 前缀（默认 "/" 剥尾斜杠为空串，本地 dev 行为不变）
 const BASE_PATH = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
 
-export async function http(url: string, options: FetchOptions = {}) {
+export async function http<T = any>(url: string, options: FetchOptions = {}): Promise<T> {
   const { logout } = useAuth()
 
   const headers = new Headers(options.headers)
@@ -48,7 +48,7 @@ export async function http(url: string, options: FetchOptions = {}) {
 
   // Handle 204 No Content
   if (response.status === 204) {
-    return null
+    return null as T
   }
 
   return response.json()

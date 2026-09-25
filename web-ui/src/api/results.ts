@@ -1,4 +1,4 @@
-import type { ResultInsights, ResultItem } from '@/types/result.d.ts'
+import type { ResultInsights, ResultItem, UsedTag } from '@/types/result.d.ts'
 import { http } from '@/lib/http'
 
 export interface GetResultContentParams {
@@ -8,6 +8,8 @@ export interface GetResultContentParams {
   include_hidden?: boolean;
   sort_by?: 'crawl_time' | 'publish_time' | 'price' | 'keyword_hit_count';
   sort_order?: 'asc' | 'desc';
+  tags?: string;
+  has_note?: boolean;
   page?: number;
   limit?: number;
 }
@@ -72,4 +74,25 @@ export async function updateItemStatus(filename: string, itemId: string, status:
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
   })
+}
+
+export interface UpdateAnnotationPayload {
+  note?: string;
+  tags?: string[];
+}
+
+export async function updateItemAnnotation(
+  filename: string,
+  itemId: string,
+  payload: UpdateAnnotationPayload,
+): Promise<{ message: string; note: string; tags: string[] }> {
+  return await http(`/api/results/${filename}/items/${itemId}/annotation`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function getUsedTags(): Promise<{ tags: UsedTag[] }> {
+  return await http('/api/results/used-tags')
 }

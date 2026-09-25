@@ -31,6 +31,9 @@ const {
   exportSelectedResults,
   deleteSelectedFile,
   toggleItemBlock,
+  usedTags,
+  saveItemAnnotation,
+  blockItem,
   blacklistKeywords,
   isSavingBlacklist,
   saveBlacklistRules,
@@ -94,6 +97,25 @@ function handleToggleBlock(item: Parameters<typeof toggleItemBlock>[0]) {
   toggleItemBlock(item)
 }
 
+async function handleAnnotate(
+  item: Parameters<typeof saveItemAnnotation>[0],
+  payload: Parameters<typeof saveItemAnnotation>[1],
+) {
+  try {
+    await saveItemAnnotation(item, payload)
+  } catch (e) {
+    toast({
+      title: t('results.card.annotationSaveFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
+function handleBlock(item: Parameters<typeof blockItem>[0], reasonTags: string[]) {
+  blockItem(item, reasonTags)
+}
+
 async function handleDeleteResults() {
   if (!selectedFile.value) return
   try {
@@ -153,8 +175,11 @@ async function handleSaveBlacklistRules() {
       v-model:includeHidden="filters.include_hidden"
       v-model:sortBy="filters.sort_by"
       v-model:sortOrder="filters.sort_order"
+      v-model:selectedTags="filters.tags"
+      v-model:hasNote="filters.has_note"
       :is-loading="isLoading"
       :is-all-mode="isAllMode"
+      :used-tags="usedTags.map((tag) => tag.name)"
       @refresh="refreshResults"
       @manage-blacklist="openBlacklistDialog"
       @export="handleExportResults"
@@ -163,7 +188,14 @@ async function handleSaveBlacklistRules() {
 
     <ResultsInsightsPanel :insights="insights" :selected-task-label="selectedTaskLabel" />
 
-    <ResultsGrid :results="results" :is-loading="isLoading" @toggle-block="handleToggleBlock" />
+    <ResultsGrid
+      :results="results"
+      :is-loading="isLoading"
+      :used-tags="usedTags.map((tag) => tag.name)"
+      @toggle-block="handleToggleBlock"
+      @block="handleBlock"
+      @annotate="handleAnnotate"
+    />
 
     <Dialog v-model:open="isDeleteDialogOpen">
       <DialogContent class="sm:max-w-[420px]">

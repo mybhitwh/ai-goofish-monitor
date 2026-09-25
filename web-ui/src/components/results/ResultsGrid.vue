@@ -6,6 +6,7 @@ import ResultCard from './ResultCard.vue'
 interface Props {
   results: ResultItem[]
   isLoading: boolean
+  usedTags?: string[]
 }
 
 defineProps<Props>()
@@ -13,6 +14,8 @@ const { t } = useI18n()
 
 const emit = defineEmits<{
   (e: 'toggle-block', item: ResultItem): void
+  (e: 'block', item: ResultItem, reasonTags: string[]): void
+  (e: 'annotate', item: ResultItem, payload: { note?: string; tags?: string[] }): void
 }>()
 const skeletonItems = Array.from({ length: 8 }, (_, index) => index)
 </script>
@@ -46,7 +49,15 @@ const skeletonItems = Array.from({ length: 8 }, (_, index) => index)
       {{ t('results.grid.empty') }}
     </div>
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      <ResultCard v-for="item in results" :key="item.商品信息.商品ID" :item="item" @toggle-block="emit('toggle-block', $event)" />
+      <ResultCard
+        v-for="item in results"
+        :key="item.商品信息.商品ID"
+        :item="item"
+        :used-tags="usedTags"
+        @toggle-block="emit('toggle-block', $event)"
+        @block="(item, reasons) => emit('block', item, reasons)"
+        @annotate="(item, payload) => emit('annotate', item, payload)"
+      />
     </div>
   </div>
 </template>

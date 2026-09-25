@@ -107,4 +107,14 @@ export interface ResultItem {
   _effective_hidden?: boolean;
   _hidden_reason?: 'manual' | 'rule' | 'expired' | null;
   _matched_blacklist_keywords?: string[];
+  /** 我的备注（按商品全局存储，重爬不丢） */
+  _note?: string;
+  /** 我的自定义标签（按商品全局存储，重爬不丢） */
+  _user_tags?: string[];
+}
+
+export interface UsedTag {
+  name: string;
+  count: number;
+  last_used_at: string;
 }

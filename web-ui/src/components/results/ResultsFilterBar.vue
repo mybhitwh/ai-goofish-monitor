@@ -30,6 +30,9 @@ interface Props {
   isLoading: boolean
   isReady: boolean
   isAllMode?: boolean
+  usedTags?: string[]
+  selectedTags?: string[]
+  hasNote?: boolean
 }
 
 const props = defineProps<Props>()
@@ -71,11 +74,21 @@ const emit = defineEmits<{
   (e: 'update:includeHidden', value: boolean): void
   (e: 'update:sortBy', value: 'crawl_time' | 'publish_time' | 'price' | 'keyword_hit_count'): void
   (e: 'update:sortOrder', value: 'asc' | 'desc'): void
+  (e: 'update:selectedTags', value: string[]): void
+  (e: 'update:hasNote', value: boolean): void
   (e: 'refresh'): void
   (e: 'export'): void
   (e: 'delete'): void
   (e: 'manage-blacklist'): void
 }>()
+
+function handleToggleTag(tag: string) {
+  const current = props.selectedTags || []
+  const next = current.includes(tag)
+    ? current.filter((item) => item !== tag)
+    : [...current, tag]
+  emit('update:selectedTags', next)
+}
 
 function handleToggleAiRecommended(value: boolean) {
   emit('update:aiRecommendedOnly', value)
@@ -177,6 +190,32 @@ function handleToggleKeywordRecommended(value: boolean) {
           />
           <Label for="include-hidden" class="cursor-pointer">{{ t('results.filters.includeHidden') }}</Label>
         </div>
+
+        <div class="flex items-center space-x-2">
+          <Checkbox
+            id="has-note"
+            :model-value="props.hasNote"
+            @update:modelValue="(value) => emit('update:hasNote', value === true)"
+          />
+          <Label for="has-note" class="cursor-pointer">{{ t('results.filters.hasNote') }}</Label>
+        </div>
+      </div>
+
+      <!-- 标签筛选（有已用标签时才出现） -->
+      <div v-if="(usedTags || []).length > 0" class="flex flex-wrap items-center gap-1.5 mt-3">
+        <span class="text-xs font-semibold text-slate-400">{{ t('results.filters.tagFilterLabel') }}</span>
+        <button
+          v-for="tag in usedTags"
+          :key="tag"
+          type="button"
+          @click="handleToggleTag(tag)"
+          class="text-xs px-2.5 py-0.5 rounded-full border transition-colors"
+          :class="(selectedTags || []).includes(tag)
+            ? 'bg-blue-500 border-blue-500 text-white'
+            : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600'"
+        >
+          {{ tag }}
+        </button>
       </div>
 
       <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap lg:justify-end">
