@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-25-fix-risk-control-stop-loss/research/risk-control-incident-evidence.md", "reason": "按锚点表逐条验证修复是否命中真实成因，而非仅让测试变绿"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "检查是否引入重复的账号/状态文件解析实现"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端分层约定：本次改动不得跨层耦合"}

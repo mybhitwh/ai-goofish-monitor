@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-25-fix-risk-control-stop-loss/research/risk-control-incident-evidence.md", "reason": "事故原始证据与修复前的代码锚点表，动手前逐条核对"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "R5 要求复用 guard 已记录的真实登录态路径，不要复制账号解析逻辑"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "风控异常将从 scraper 跨层传到 attempt 循环与熔断服务，改动前确认层边界"}
