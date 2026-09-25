@@ -1191,6 +1191,14 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                 if analysis_dispatcher is not None:
                     log_time("等待后台分析任务完成...")
                     await analysis_dispatcher.join()
+                # --- 过期复核：对长期未见的在库商品回访详情页定性（售出/下架/仍在售） ---
+                # 任何异常都不影响主扫描流程；风控信号会中止复核并原样让主流程收尾
+                try:
+                    from src.services.item_recheck_service import run_stale_recheck
+
+                    await run_stale_recheck(context, task_config)
+                except Exception as recheck_error:
+                    log_time(f"[复核] 本轮复核未完成，已跳过: {recheck_error}")
                 log_time("任务执行完毕，浏览器将在5秒后自动关闭...")
                 await asyncio.sleep(5)
                 if debug_limit:

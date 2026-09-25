@@ -24,6 +24,9 @@ DETAIL_API_URL_PATTERN = "h5api.m.goofish.com/h5/mtop.taobao.idle.pc.detail"
 API_KEY = os.getenv("OPENAI_API_KEY")
 BASE_URL = os.getenv("OPENAI_BASE_URL")
 MODEL_NAME = os.getenv("OPENAI_MODEL_NAME")
+# 过期复核：最后快照距今超过该天数的在库商品触发详情回访；每轮复核上限
+RECHECK_STALE_DAYS = int(os.getenv("RECHECK_STALE_DAYS", "3") or 3)
+RECHECK_MAX_PER_RUN = int(os.getenv("RECHECK_MAX_PER_RUN", "20") or 20)
 PROXY_URL = os.getenv("PROXY_URL")
 NTFY_TOPIC_URL = os.getenv("NTFY_TOPIC_URL")
 GOTIFY_URL = os.getenv("GOTIFY_URL")
