@@ -140,6 +140,7 @@ const enUS = {
       loadingTaskNames: 'Loading task names...',
       noResults: 'No results yet. Run a task first.',
       allFiles: 'All results (merged view)',
+      groupFiles: '{name} (group merged)',
       allModeTaskScoped: 'This action is task-scoped. Select a specific task first.',
       chooseResult: 'Select a task result',
       taskNameLabel: 'Task: {task}',

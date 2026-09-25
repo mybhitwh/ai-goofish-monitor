@@ -22,6 +22,7 @@ const { t } = useI18n()
 
 const props = defineProps<{
   accountOptions?: { name: string; path: string }[]
+  groupOptions?: { id: number; name: string; cron: string | null }[]
 }>()
 
 const emit = defineEmits<{
@@ -133,6 +134,7 @@ watch(pollingError, (value) => {
       <TaskForm
         mode="create"
         :account-options="accountOptions"
+        :group-options="groupOptions"
         :default-account="defaultAccountPath"
         :default-values="defaultValues"
         @submit="(data) => handleCreateTask(data as TaskGenerateRequest)"

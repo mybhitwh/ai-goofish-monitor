@@ -1,15 +1,20 @@
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type {
   Task,
   TaskCreateResponse,
   TaskGenerateRequest,
+  TaskGroup,
+  TaskGroupCreate,
+  TaskGroupUpdate,
   TaskUpdate,
 } from '@/types/task.d.ts'
 import * as taskApi from '@/api/tasks'
+import * as groupApi from '@/api/groups'
 import { useWebSocket } from '@/composables/useWebSocket'
 
 export function useTasks() {
   const tasks = ref<Task[]>([])
+  const groups = ref<TaskGroup[]>([])
   const isLoading = ref(false)
   const error = ref<Error | null>(null)
   const stoppingTaskIds = ref<Set<number>>(new Set())
@@ -32,6 +37,36 @@ export function useTasks() {
         isLoading.value = false
       }
     }
+  }
+
+  async function fetchGroups(options?: { silent?: boolean }) {
+    if (!options?.silent) {
+      isLoading.value = true
+    }
+    error.value = null
+    try {
+      groups.value = await groupApi.getAllGroups()
+    } catch (e) {
+      if (e instanceof Error) {
+        error.value = e
+      }
+      console.error(e)
+    } finally {
+      if (!options?.silent) {
+        isLoading.value = false
+      }
+    }
+  }
+
+  const groupById = computed(() => {
+    const map = new Map<number, TaskGroup>()
+    groups.value.forEach((group) => map.set(group.id, group))
+    return map
+  })
+
+  function groupName(task: Task | null | undefined): string | null {
+    if (!task?.group_id) return null
+    return groupById.value.get(task.group_id)?.name || null
   }
 
   // Real-time updates
@@ -135,20 +170,89 @@ export function useTasks() {
       isLoading.value = false
     }
   }
-  
+
+  // ---- 任务组管理 ----
+  async function createGroup(data: TaskGroupCreate) {
+    error.value = null
+    try {
+      await groupApi.createGroup(data)
+      await fetchGroups({ silent: true })
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    }
+  }
+
+  async function updateGroup(groupId: number, data: TaskGroupUpdate) {
+    error.value = null
+    try {
+      await groupApi.updateGroup(groupId, data)
+      await fetchGroups({ silent: true })
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    }
+  }
+
+  async function removeGroup(groupId: number) {
+    error.value = null
+    try {
+      await groupApi.deleteGroup(groupId)
+      await fetchGroups({ silent: true })
+      await fetchTasks({ silent: true })
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    }
+  }
+
+  async function startGroup(groupId: number) {
+    error.value = null
+    try {
+      await groupApi.startGroup(groupId)
+      await fetchTasks({ silent: true })
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    }
+  }
+
+  async function stopGroup(groupId: number) {
+    error.value = null
+    try {
+      await groupApi.stopGroup(groupId)
+      await fetchTasks({ silent: true })
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+      throw e
+    }
+  }
+
   // Load tasks when the composable is first used in a component
-  onMounted(fetchTasks)
+  onMounted(() => {
+    fetchTasks()
+    fetchGroups({ silent: true })
+  })
 
   return {
     tasks,
+    groups,
+    groupById,
+    groupName,
     isLoading,
     error,
     fetchTasks,
+    fetchGroups,
     createTask,
     updateTask,
     removeTask,
     startTask,
     stopTask,
     stoppingTaskIds,
+    createGroup,
+    updateGroup,
+    removeGroup,
+    startGroup,
+    stopGroup,
   }
 }

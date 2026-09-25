@@ -2,13 +2,31 @@ import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { ResultInsights, ResultItem } from '@/types/result.d.ts'
+import type { Task, TaskGroup } from '@/types/task.d.ts'
 import * as resultsApi from '@/api/results'
 import type { GetResultContentParams } from '@/api/results'
 import { useWebSocket } from '@/composables/useWebSocket'
 import * as tasksApi from '@/api/tasks'
+import * as groupsApi from '@/api/groups'
 
-// 合并视图哨兵值：选中时聚合所有任务的结果（按商品ID去重、前端排序）
+// 合并视图哨兵值（历史遗留）：聚合所有任务的结果
 export const ALL_FILES = '__all__'
+// 任务组合并视图哨兵前缀：__group_{id}__ 聚合同组任务的结果
+export const GROUP_PREFIX = '__group_'
+
+export function groupValue(groupId: number): string {
+  return `${GROUP_PREFIX}${groupId}__`
+}
+
+export function parseGroupValue(value: string | null | undefined): number | null {
+  if (!value) return null
+  const match = value.match(/^__group_(\d+)__$/)
+  return match ? Number(match[1]) : null
+}
+
+export function isMergedValue(value: string | null | undefined): boolean {
+  return value === ALL_FILES || parseGroupValue(value) !== null
+}
 
 export function useResults() {
   const { t } = useI18n()
@@ -23,6 +41,8 @@ export function useResults() {
   const limit = ref(100)
   const blacklistKeywords = ref<string[]>([])
   const taskNameByKeyword = ref<Record<string, string>>({})
+  const groups = ref<TaskGroup[]>([])
+  const tasksInfo = ref<Task[]>([])
   const isFileOptionsReady = ref(false)
   const hasFetchedFiles = ref(false)
   const hasFetchedTasks = ref(false)
@@ -63,24 +83,52 @@ export function useResults() {
   }
 
   // Methods
+  async function fetchGroups() {
+    try {
+      groups.value = await groupsApi.getAllGroups()
+    } catch (e) {
+      if (e instanceof Error) error.value = e
+    }
+  }
+
+  // 当前组哨兵值对应的文件集合是否非空（组内至少有一个任务出过结果）
+  const groupOptionEntries = computed(() => {
+    if (groups.value.length === 0) return []
+    const availableKeywords = new Set(files.value.map((file) => getKeywordFromFilename(file)))
+    return groups.value
+      .filter((group) =>
+        tasksInfo.value.some(
+          (task) =>
+            task.group_id === group.id &&
+            availableKeywords.has(normalizeKeyword(task.keyword || ''))
+        )
+      )
+      .map((group) => ({
+        value: groupValue(group.id),
+        taskName: '',
+        label: t('results.filters.groupFiles', { name: group.name }),
+      }))
+  })
+
   async function fetchFiles() {
     try {
       const fileList = await resultsApi.getResultFiles()
       files.value = fileList
       // If a file is selected that no longer exists, reset it.
       // Otherwise, if nothing is selected, select the first file by default.
-      if (selectedFile.value && fileList.includes(selectedFile.value)) {
+      const optionValues = new Set(fileOptions.value.map((option) => option.value))
+      if (selectedFile.value && optionValues.has(selectedFile.value)) {
         return
       }
 
       const lastSelected = localStorage.getItem('lastSelectedResultFile')
-      if (lastSelected && fileList.includes(lastSelected)) {
+      if (lastSelected && optionValues.has(lastSelected)) {
         selectedFile.value = lastSelected
         return
       }
 
-      // 默认进入合并视图，一次看全部任务的结果
-      selectedFile.value = fileList.length > 0 ? ALL_FILES : null
+      // 默认进入第一个任务组（或任务）视图
+      selectedFile.value = fileOptions.value.length > 0 ? fileOptions.value[0].value : null
     } catch (e) {
       if (e instanceof Error) error.value = e
     } finally {
@@ -153,11 +201,23 @@ export function useResults() {
     isLoading.value = true
     error.value = null
     try {
-      if (selectedFile.value === ALL_FILES) {
-        // 合并视图：并行拉取所有任务的结果，前端去重 + 排序
+      const groupId = parseGroupValue(selectedFile.value)
+      if (selectedFile.value === ALL_FILES || groupId !== null) {
+        // 合并视图：任务组视图只聚合组内任务；全量视图聚合所有任务
+        let targetFiles = files.value
+        if (groupId !== null) {
+          const groupKeywords = new Set(
+            tasksInfo.value
+              .filter((task) => task.group_id === groupId)
+              .map((task) => normalizeKeyword(task.keyword || ''))
+          )
+          targetFiles = files.value.filter((file) =>
+            groupKeywords.has(getKeywordFromFilename(file))
+          )
+        }
         const params = { ...filters, page: 1, limit: 100 }
         const responses = await Promise.all(
-          files.value.map((file) =>
+          targetFiles.map((file) =>
             resultsApi.getResultContent(file, params).catch(() => ({ total_items: 0, items: [] as ResultItem[] }))
           )
         )
@@ -182,7 +242,7 @@ export function useResults() {
   }
 
   async function fetchInsights() {
-    if (!selectedFile.value || selectedFile.value === ALL_FILES) {
+    if (!selectedFile.value || isMergedValue(selectedFile.value)) {
       insights.value = null
       return
     }
@@ -196,7 +256,7 @@ export function useResults() {
   }
 
   async function fetchBlacklistRules() {
-    if (!selectedFile.value || selectedFile.value === ALL_FILES) {
+    if (!selectedFile.value || isMergedValue(selectedFile.value)) {
       blacklistKeywords.value = []
       return
     }
@@ -213,6 +273,7 @@ export function useResults() {
   async function fetchTaskNameMap() {
     try {
       const tasks = await tasksApi.getAllTasks()
+      tasksInfo.value = tasks
       const mapping: Record<string, string> = {}
       tasks.forEach((task) => {
         if (task.keyword) {
@@ -251,6 +312,7 @@ export function useResults() {
 
   on('tasks_updated', () => {
     fetchTaskNameMap()
+    fetchGroups()
   })
 
   async function refreshResults() {
@@ -264,7 +326,7 @@ export function useResults() {
   }
 
   function exportSelectedResults() {
-    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
+    if (!selectedFile.value || isMergedValue(selectedFile.value)) return
     resultsApi.downloadResultExport(selectedFile.value, { ...filters })
   }
 
@@ -291,7 +353,7 @@ export function useResults() {
   }
 
   async function toggleItemBlock(item: ResultItem) {
-    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
+    if (!selectedFile.value || isMergedValue(selectedFile.value)) return
     const itemId = item.商品信息?.商品ID
     if (!itemId) return
     const newStatus = item._status === 'hidden' ? 'active' : 'hidden'
@@ -304,7 +366,7 @@ export function useResults() {
   }
 
   async function saveBlacklistRules(keywords: string[]) {
-    if (!selectedFile.value || selectedFile.value === ALL_FILES) return
+    if (!selectedFile.value || isMergedValue(selectedFile.value)) return
     isSavingBlacklist.value = true
     error.value = null
     try {
@@ -355,17 +417,18 @@ export function useResults() {
         }),
       }
     })
-    if (perTask.length === 0) return perTask
-    return [
-      { value: ALL_FILES, taskName: '', label: t('results.filters.allFiles') },
-      ...perTask,
-    ]
+    // 任务组合并视图排在最前，随后是单个任务
+    return [...groupOptionEntries.value, ...perTask]
   })
+
+  // 当前是否处于合并视图（任务组或历史遗留的全量视图）
+  const isMergedMode = computed(() => isMergedValue(selectedFile.value))
 
   // Lifecycle
   onMounted(() => {
     fetchFiles()
     fetchTaskNameMap()
+    fetchGroups()
   })
 
   return {
@@ -387,5 +450,6 @@ export function useResults() {
     saveBlacklistRules,
     fileOptions,
     isFileOptionsReady,
+    isMergedMode,
   }
 }

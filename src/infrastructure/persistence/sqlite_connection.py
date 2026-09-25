@@ -43,7 +43,8 @@ SCHEMA_STATEMENTS = (
         region TEXT,
         decision_mode TEXT NOT NULL,
         keyword_rules_json TEXT NOT NULL,
-        is_running INTEGER NOT NULL
+        is_running INTEGER NOT NULL,
+        group_id INTEGER
     )
     """,
     """
@@ -97,6 +98,15 @@ SCHEMA_STATEMENTS = (
         updated_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS task_groups (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        cron TEXT,
+        execution_mode TEXT NOT NULL DEFAULT 'serial',
+        enabled INTEGER NOT NULL DEFAULT 1
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_tasks_name ON tasks(task_name)",
     """
     CREATE INDEX IF NOT EXISTS idx_results_filename_crawl
@@ -143,6 +153,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
     for statement in SCHEMA_STATEMENTS:
         conn.execute(statement)
     _migrate_result_items_status(conn)
+    _migrate_tasks_group_id(conn)
     conn.commit()
 
 
@@ -164,6 +175,25 @@ def _migrate_result_items_status(conn: sqlite3.Connection) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_results_filename_status_crawl"
         " ON result_items(result_filename, status, crawl_time DESC)"
+    )
+
+
+def _migrate_tasks_group_id(conn: sqlite3.Connection) -> None:
+    """为 tasks 表添加 group_id 列（仅执行一次）。"""
+    row = conn.execute(
+        "SELECT value FROM app_metadata WHERE key = 'migration:tasks_group_id'"
+    ).fetchone()
+    if row is not None:
+        return
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+    if "group_id" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN group_id INTEGER")
+    conn.execute(
+        "INSERT OR REPLACE INTO app_metadata(key, value)"
+        " VALUES ('migration:tasks_group_id', 'done')"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_group ON tasks(group_id)"
     )
 
 

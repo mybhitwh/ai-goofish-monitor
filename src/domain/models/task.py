@@ -129,6 +129,7 @@ class Task(BaseModel):
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
     keyword_rules: List[str] = Field(default_factory=list)
+    group_id: Optional[int] = None
     is_running: bool = False
 
     @model_validator(mode="before")
@@ -179,6 +180,7 @@ class TaskCreate(BaseModel):
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
     keyword_rules: List[str] = Field(default_factory=list)
+    group_id: Optional[int] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -246,6 +248,7 @@ class TaskUpdate(BaseModel):
     region: Optional[str] = None
     decision_mode: Optional[Literal["ai", "keyword"]] = None
     keyword_rules: Optional[List[str]] = None
+    group_id: Optional[int] = None
     is_running: Optional[bool] = None
 
     @model_validator(mode="before")
@@ -310,6 +313,7 @@ class TaskGenerateRequest(BaseModel):
     region: Optional[str] = None
     decision_mode: Literal["ai", "keyword"] = "ai"
     keyword_rules: List[str] = Field(default_factory=list)
+    group_id: Optional[int] = None
 
     @model_validator(mode="before")
     @classmethod

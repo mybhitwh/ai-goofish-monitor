@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useResults, ALL_FILES } from '@/composables/useResults'
+import { useResults } from '@/composables/useResults'
 import ResultsFilterBar from '@/components/results/ResultsFilterBar.vue'
 import ResultsGrid from '@/components/results/ResultsGrid.vue'
 import ResultsInsightsPanel from '@/components/results/ResultsInsightsPanel.vue'
@@ -36,13 +36,14 @@ const {
   saveBlacklistRules,
   fileOptions,
   isFileOptionsReady,
+  isMergedMode,
 } = useResults()
 
 const isDeleteDialogOpen = ref(false)
 const isBlacklistDialogOpen = ref(false)
 const blacklistDraft = ref('')
 
-const isAllMode = computed(() => selectedFile.value === ALL_FILES)
+const isAllMode = isMergedMode
 
 const selectedTaskLabel = computed(() => {
   if (!selectedFile.value || fileOptions.value.length === 0) return null

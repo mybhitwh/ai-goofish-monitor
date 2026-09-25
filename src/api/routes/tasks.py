@@ -10,9 +10,11 @@ from src.api.dependencies import (
     get_process_service,
     get_scheduler_service,
     get_task_generation_service,
+    get_task_group_service,
     get_task_service,
 )
 from src.services.task_service import TaskService
+from src.services.task_group_service import TaskGroupService
 from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_generation_service import TaskGenerationService
@@ -40,6 +42,17 @@ async def _reload_scheduler_if_needed(
 
 def _has_keyword_rules(rules) -> bool:
     return bool(rules and len(rules) > 0)
+
+
+async def _validate_group_reference(
+    group_service: TaskGroupService, group_id
+) -> None:
+    """校验任务引用的任务组存在"""
+    if group_id is None:
+        return
+    group = await group_service.get_group(int(group_id))
+    if not group:
+        raise HTTPException(status_code=400, detail="所选任务组不存在")
 
 
 def _validate_final_account_strategy(existing_task, task_update: TaskUpdate) -> None:
@@ -79,8 +92,10 @@ async def create_task(
     task_create: TaskCreate,
     service: TaskService = Depends(get_task_service),
     scheduler_service: SchedulerService = Depends(get_scheduler_service),
+    group_service: TaskGroupService = Depends(get_task_group_service),
 ):
     """创建新任务"""
+    await _validate_group_reference(group_service, task_create.group_id)
     task = await service.create_task(task_create)
     await _reload_scheduler_if_needed(service, scheduler_service)
     return {"message": "任务创建成功", "task": serialize_task(task, scheduler_service)}
@@ -143,12 +158,14 @@ async def update_task(
     task_update: TaskUpdate,
     service: TaskService = Depends(get_task_service),
     scheduler_service: SchedulerService = Depends(get_scheduler_service),
+    group_service: TaskGroupService = Depends(get_task_group_service),
 ):
     """更新任务"""
     try:
         existing_task = await service.get_task(task_id)
         if not existing_task:
             raise HTTPException(status_code=404, detail="任务未找到")
+        await _validate_group_reference(group_service, task_update.group_id)
         _validate_final_account_strategy(existing_task, task_update)
 
         current_mode = getattr(existing_task, "decision_mode", "ai") or "ai"

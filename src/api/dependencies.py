@@ -4,12 +4,14 @@ FastAPI 依赖注入
 """
 from fastapi import Depends
 from src.services.task_service import TaskService
+from src.services.task_group_service import TaskGroupService
 from src.services.notification_service import NotificationService, build_notification_service
 from src.services.ai_service import AIAnalysisService
 from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_generation_service import TaskGenerationService
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
+from src.infrastructure.persistence.sqlite_task_group_repository import SqliteTaskGroupRepository
 from src.infrastructure.external.ai_client import AIClient
 
 
@@ -42,6 +44,12 @@ def get_task_service() -> TaskService:
     """获取任务管理服务实例"""
     repository = SqliteTaskRepository()
     return TaskService(repository)
+
+
+def get_task_group_service() -> TaskGroupService:
+    """获取任务组管理服务实例"""
+    repository = SqliteTaskGroupRepository()
+    return TaskGroupService(repository)
 
 
 def get_notification_service() -> NotificationService:

@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from src.api.routes import (
     dashboard,
     tasks,
+    task_groups,
     logs,
     settings,
     prompts,
@@ -24,12 +25,14 @@ from src.api.dependencies import (
     set_task_generation_service,
 )
 from src.services.task_service import TaskService
+from src.services.task_group_service import TaskGroupService
 from src.services.process_service import ProcessService
 from src.services.scheduler_service import SchedulerService
 from src.services.task_log_cleanup_service import cleanup_task_logs
 from src.services.task_generation_service import TaskGenerationService
 from src.infrastructure.persistence.sqlite_bootstrap import bootstrap_sqlite_storage
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
+from src.infrastructure.persistence.sqlite_task_group_repository import SqliteTaskGroupRepository
 from src.infrastructure.config.settings import settings as app_settings
 
 
@@ -37,6 +40,12 @@ from src.infrastructure.config.settings import settings as app_settings
 process_service = ProcessService()
 scheduler_service = SchedulerService(process_service)
 task_generation_service = TaskGenerationService()
+
+# 注入任务/任务组数据提供者，供任务组定时触发时查询组内成员
+scheduler_service.set_providers(
+    task_provider=TaskService(SqliteTaskRepository()).get_all_tasks,
+    group_provider=TaskGroupService(SqliteTaskGroupRepository()).get_all_groups,
+)
 
 
 async def _sync_task_runtime_status(task_id: int, is_running: bool) -> None:
@@ -104,6 +113,7 @@ app = FastAPI(
 
 # 注册路由
 app.include_router(tasks.router)
+app.include_router(task_groups.router)
 app.include_router(dashboard.router)
 app.include_router(logs.router)
 app.include_router(settings.router)

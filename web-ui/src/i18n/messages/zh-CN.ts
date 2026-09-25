@@ -140,6 +140,7 @@ const zhCN = {
       loadingTaskNames: '加载任务名称...',
       noResults: '暂无结果，请先运行任务',
       allFiles: '全部商品（合并所有任务）',
+      groupFiles: '{name}（任务组合并）',
       allModeTaskScoped: '该操作针对单个任务的结果，请先选择具体任务',
       chooseResult: '请选择任务结果',
       taskNameLabel: '任务名称：{task}',

@@ -16,8 +16,11 @@ sys.path.insert(0, str(repo_root))
 
 from src.api import dependencies as deps
 from src.api.routes import tasks
+from src.api.routes import task_groups
 from src.infrastructure.persistence.sqlite_task_repository import SqliteTaskRepository
+from src.infrastructure.persistence.sqlite_task_group_repository import SqliteTaskGroupRepository
 from src.services.task_service import TaskService
+from src.services.task_group_service import TaskGroupService
 from src.services.task_generation_service import TaskGenerationService
 
 
@@ -98,6 +101,9 @@ class FakeSchedulerService:
     def get_next_run_time(self, task_id: int):
         return self.next_run_times.get(task_id)
 
+    def get_group_next_run_time(self, group_id: int):
+        return None
+
 
 @pytest.fixture()
 def api_context(tmp_path):
@@ -110,15 +116,21 @@ def api_context(tmp_path):
         legacy_config_file=None,
     )
     task_service = TaskService(repository)
+    group_repository = SqliteTaskGroupRepository(db_path=str(db_path))
+    group_service = TaskGroupService(group_repository)
     process_service = FakeProcessService()
     scheduler_service = FakeSchedulerService()
     task_generation_service = TaskGenerationService()
 
     app = FastAPI()
     app.include_router(tasks.router)
+    app.include_router(task_groups.router)
 
     def override_get_task_service():
         return task_service
+
+    def override_get_task_group_service():
+        return group_service
 
     def override_get_process_service():
         return process_service
@@ -140,6 +152,7 @@ def api_context(tmp_path):
     process_service.set_lifecycle_hooks(on_started=mark_started, on_stopped=mark_stopped)
 
     app.dependency_overrides[deps.get_task_service] = override_get_task_service
+    app.dependency_overrides[deps.get_task_group_service] = override_get_task_group_service
     app.dependency_overrides[deps.get_process_service] = override_get_process_service
     app.dependency_overrides[deps.get_scheduler_service] = override_get_scheduler_service
     app.dependency_overrides[deps.get_task_generation_service] = override_get_task_generation_service

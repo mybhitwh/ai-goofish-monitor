@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Task } from '@/types/task.d.ts'
+import type { Task, TaskGroup } from '@/types/task.d.ts'
 import {
   Table,
   TableBody,
@@ -33,6 +33,7 @@ interface Props {
   tasks: Task[]
   isLoading: boolean
   stoppingIds?: Set<number>
+  groups?: TaskGroup[]
 }
 
 const props = defineProps<Props>()
@@ -41,6 +42,17 @@ const isStopping = (id: number) => props.stoppingIds?.has(id) ?? false
 const isKeywordMode = (task: Task) => task.decision_mode === 'keyword'
 const nowMs = ref(Date.now())
 let timer: number | null = null
+
+const groupMap = computed(() => {
+  const map = new Map<number, TaskGroup>()
+  ;(props.groups || []).forEach((group) => map.set(group.id, group))
+  return map
+})
+
+const resolveGroup = (task: Task): TaskGroup | null => {
+  if (!task.group_id) return null
+  return groupMap.value.get(task.group_id) || null
+}
 
 onMounted(() => {
   timer = window.setInterval(() => {
@@ -68,20 +80,39 @@ const resolveAccountName = (task: Task) => {
 }
 
 const resolveCountdownText = (task: Task) => {
+  const group = resolveGroup(task)
+  if (group && group.cron) {
+    if (!group.enabled) return t('tasks.table.disabled')
+    return formatCountdown(group.next_run_at, nowMs.value) || t('tasks.table.waitingSchedule')
+  }
   if (!task.cron) return t('tasks.table.manualTrigger')
   if (!task.enabled) return t('tasks.table.disabled')
   return formatCountdown(task.next_run_at, nowMs.value) || t('tasks.table.waitingSchedule')
 }
 
 const resolveCountdownTone = (task: Task) => {
+  const group = resolveGroup(task)
+  if (group && group.cron) {
+    return group.enabled ? 'text-amber-600' : 'text-slate-400'
+  }
   if (!task.cron) return 'text-slate-400'
   if (!task.enabled) return 'text-slate-400'
   return 'text-amber-600'
 }
 
 const resolveNextRunLabel = (task: Task) => {
+  const group = resolveGroup(task)
+  if (group && group.cron) {
+    if (!group.enabled || !group.next_run_at) return null
+    return formatNextRunAbsolute(group.next_run_at)
+  }
   if (!task.cron || !task.enabled || !task.next_run_at) return null
   return formatNextRunAbsolute(task.next_run_at)
+}
+
+const resolveCronText = (task: Task) => {
+  const group = resolveGroup(task)
+  return group?.cron || task.cron || 'MANUAL'
 }
 
 const emit = defineEmits<{
@@ -130,6 +161,14 @@ const emit = defineEmits<{
                 >
                   <component :is="isKeywordMode(task) ? Keyboard : BrainCircuit" class="mr-1 h-3 w-3" />
                   {{ isKeywordMode(task) ? 'KEYWORD' : 'AI' }}
+                </Badge>
+                <Badge
+                  v-if="resolveGroup(task)"
+                  variant="outline"
+                  class="border-none bg-violet-50 px-2 py-0.5 text-[10px] font-black text-violet-600"
+                >
+                  <Layers class="mr-1 h-3 w-3" />
+                  {{ resolveGroup(task)?.name }}
                 </Badge>
               </div>
 
@@ -194,7 +233,7 @@ const emit = defineEmits<{
               <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span class="inline-flex items-center gap-1">
                   <Clock class="h-3.5 w-3.5" />
-                  {{ task.cron || 'MANUAL' }}
+                  {{ resolveCronText(task) }}
                 </span>
                 <span class="inline-flex items-center gap-1">
                   <Layers class="h-3.5 w-3.5" />
@@ -355,6 +394,14 @@ const emit = defineEmits<{
                     <component :is="isKeywordMode(task) ? Keyboard : BrainCircuit" class="w-2.5 h-2.5 mr-1" />
                     {{ isKeywordMode(task) ? 'KEYWORD' : 'AI ENGINE' }}
                   </Badge>
+                  <Badge
+                    v-if="resolveGroup(task)"
+                    variant="outline"
+                    class="h-4 px-1.5 text-[9px] font-black border-none tracking-tighter bg-violet-50 text-violet-600"
+                  >
+                    <Layers class="w-2.5 h-2.5 mr-1" />
+                    {{ resolveGroup(task)?.name }}
+                  </Badge>
                 </div>
                 
                 <div class="flex items-center gap-2">
@@ -434,7 +481,7 @@ const emit = defineEmits<{
               <div class="inline-flex flex-col items-center gap-1.5">
                 <div class="flex items-center gap-1.5 bg-slate-100/50 border border-slate-200/30 px-2 py-1 rounded-lg">
                   <Clock class="w-3 h-3 text-slate-400" />
-                  <span class="text-[11px] font-black text-slate-600 tracking-tight">{{ task.cron || 'MANUAL' }}</span>
+                  <span class="text-[11px] font-black text-slate-600 tracking-tight">{{ resolveCronText(task) }}</span>
                 </div>
                 <div
                   class="px-2 py-1 rounded-md bg-amber-50/60 border border-amber-100/80 min-w-[112px]"

@@ -15,11 +15,13 @@ type FormMode = 'create' | 'edit'
 type EmittedData = TaskGenerateRequest | Partial<Task>
 const AUTO_ACCOUNT_VALUE = '__auto__'
 const EMPTY_CRON_VALUE = '__manual__'
+const NO_GROUP_VALUE = '__no_group__'
 
 const props = defineProps<{
   mode: FormMode
   initialData?: Task | null
   accountOptions?: { name: string; path: string }[]
+  groupOptions?: { id: number; name: string; cron: string | null }[]
   defaultAccount?: string
   defaultValues?: Partial<TaskGenerateRequest & Partial<Task>>
 }>()
@@ -32,8 +34,17 @@ const { t } = useI18n()
 const form = ref<any>({})
 const accountStrategy = ref<'auto' | 'fixed' | 'rotate'>('auto')
 const selectedAccountStateFile = ref(AUTO_ACCOUNT_VALUE)
+const selectedGroupId = ref<string>(NO_GROUP_VALUE)
 const keywordRulesInput = ref('')
 const cronMode = ref<'preset' | 'custom'>('preset')
+
+// 当前选中任务组的调度信息
+const selectedGroup = computed(() => {
+  if (selectedGroupId.value === NO_GROUP_VALUE) return null
+  return (props.groupOptions || []).find(
+    (group) => String(group.id) === selectedGroupId.value
+  ) || null
+})
 
 // 常用 cron 预设选项
 const cronPresets = computed(() => [
@@ -158,6 +169,8 @@ watch(() => [props.mode, props.initialData, props.defaultValues, props.defaultAc
   accountStrategy.value = form.value.account_strategy || (props.defaultAccount ? 'fixed' : 'auto')
   selectedAccountStateFile.value =
     form.value.account_state_file || props.defaultAccount || AUTO_ACCOUNT_VALUE
+  const groupId = defaultValues.group_id ?? (props.initialData?.group_id ?? null)
+  selectedGroupId.value = groupId != null ? String(groupId) : NO_GROUP_VALUE
 }, { immediate: true, deep: true })
 
 watch(accountStrategy, (value) => {
@@ -249,6 +262,7 @@ function handleSubmit() {
   submitData.account_strategy = currentAccountStrategy
   submitData.analyze_images = submitData.analyze_images !== false
   submitData.keyword_rules = decisionMode === 'keyword' ? keywordRules : []
+  submitData.group_id = selectedGroupId.value === NO_GROUP_VALUE ? null : Number(selectedGroupId.value)
   if (decisionMode === 'keyword' && !submitData.description) {
     submitData.description = ''
   }
@@ -332,6 +346,26 @@ function handleSubmit() {
         <Input id="max-pages" v-model.number="form.max_pages" type="number" class="sm:col-span-3" />
       </div>
       <div class="grid gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
+        <Label class="sm:text-right">{{ t('tasks.form.group') }}</Label>
+        <div class="space-y-1 sm:col-span-3">
+          <select
+            :value="selectedGroupId"
+            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            @change="selectedGroupId = ($event.target as HTMLSelectElement).value || NO_GROUP_VALUE"
+          >
+            <option :value="NO_GROUP_VALUE">{{ t('tasks.form.groupNone') }}</option>
+            <option v-for="group in groupOptions || []" :key="group.id" :value="String(group.id)">
+              {{ group.name }}
+            </option>
+          </select>
+          <p class="text-xs text-gray-500">
+            {{ selectedGroup
+              ? t('tasks.form.groupHint', { cron: selectedGroup.cron || t('tasks.form.groupNoCron') })
+              : t('tasks.form.groupNoneHint') }}
+          </p>
+        </div>
+      </div>
+      <div v-if="!selectedGroup" class="grid gap-2 sm:grid-cols-4 sm:items-center sm:gap-4">
         <Label for="cron" class="sm:text-right">{{ t('tasks.form.schedule') }}</Label>
         <div class="space-y-2 sm:col-span-3">
           <Tabs v-model="cronMode" class="w-full">

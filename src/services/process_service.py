@@ -191,6 +191,20 @@ class ProcessService:
         self._cleanup_runtime(task_id, process)
         await self._invoke_hook(self._on_stopped, task_id)
 
+    async def wait_task_exit(self, task_id: int) -> None:
+        """等待指定任务的进程退出（用于任务组串行执行）。
+
+        任务未在运行时立即返回；正在运行时等待其退出。
+        """
+        process = self.processes.get(task_id)
+        if process is None or process.returncode is not None:
+            return
+        watcher = self.exit_watchers.get(task_id)
+        if watcher is not None:
+            await asyncio.shield(watcher)
+            return
+        await process.wait()
+
     def _find_task_id_by_process(self, process: asyncio.subprocess.Process) -> int | None:
         for task_id, current_process in self.processes.items():
             if current_process is process:

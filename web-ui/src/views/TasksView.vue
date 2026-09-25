@@ -8,6 +8,8 @@ import { parseTaskFormDefaults } from '@/lib/taskFormQuery'
 import TaskCreateDialog from '@/components/tasks/TaskCreateDialog.vue'
 import TasksTable from '@/components/tasks/TasksTable.vue'
 import TaskForm from '@/components/tasks/TaskForm.vue'
+import TaskGroupDialog from '@/components/tasks/TaskGroupDialog.vue'
+import type { TaskGroupCreate, TaskGroupUpdate } from '@/types/task.d.ts'
 import { listAccounts, type AccountItem } from '@/api/accounts'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,6 +26,7 @@ const { t } = useI18n()
 
 const {
   tasks,
+  groups,
   isLoading,
   error,
   fetchTasks,
@@ -32,6 +35,11 @@ const {
   startTask,
   stopTask,
   stoppingTaskIds,
+  createGroup,
+  updateGroup,
+  removeGroup,
+  startGroup,
+  stopGroup,
 } = useTasks()
 const route = useRoute()
 
@@ -46,6 +54,11 @@ const isCriteriaSubmitting = ref(false)
 const isDeleteDialogOpen = ref(false)
 const taskToDeleteId = ref<number | null>(null)
 const accountOptions = ref<AccountItem[]>([])
+const isGroupDialogOpen = ref(false)
+
+const groupOptions = computed(() =>
+  groups.value.map((group) => ({ id: group.id, name: group.name, cron: group.cron }))
+)
 
 const taskToDelete = computed(() => {
   if (taskToDeleteId.value === null) return null
@@ -199,6 +212,72 @@ async function fetchAccountOptions() {
   }
 }
 
+// ---- 任务组管理 ----
+async function handleCreateGroup(data: TaskGroupCreate) {
+  try {
+    await createGroup(data)
+    toast({ title: t('tasks.groups.toasts.created') })
+  } catch (e) {
+    toast({
+      title: t('tasks.groups.toasts.saveFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
+async function handleUpdateGroup(groupId: number, data: TaskGroupUpdate) {
+  try {
+    await updateGroup(groupId, data)
+    toast({ title: t('tasks.groups.toasts.updated') })
+  } catch (e) {
+    toast({
+      title: t('tasks.groups.toasts.saveFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
+async function handleRemoveGroup(groupId: number) {
+  try {
+    await removeGroup(groupId)
+    toast({ title: t('tasks.groups.toasts.deleted') })
+  } catch (e) {
+    toast({
+      title: t('tasks.groups.toasts.deleteFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
+async function handleStartGroup(groupId: number) {
+  try {
+    await startGroup(groupId)
+    toast({ title: t('tasks.groups.toasts.started') })
+  } catch (e) {
+    toast({
+      title: t('tasks.groups.toasts.startFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
+async function handleStopGroup(groupId: number) {
+  try {
+    await stopGroup(groupId)
+    toast({ title: t('tasks.groups.toasts.stopped') })
+  } catch (e) {
+    toast({
+      title: t('tasks.groups.toasts.stopFailed'),
+      description: (e as Error).message,
+      variant: 'destructive',
+    })
+  }
+}
+
 onMounted(fetchAccountOptions)
 </script>
 
@@ -208,8 +287,29 @@ onMounted(fetchAccountOptions)
       <h1 class="text-2xl font-bold text-gray-800">
         {{ t('tasks.title') }}
       </h1>
-      <TaskCreateDialog :account-options="accountOptions" @created="fetchTasks" />
+      <div class="flex items-center gap-2">
+        <Button variant="outline" @click="isGroupDialogOpen = true">
+          {{ t('tasks.groups.manageButton') }}
+        </Button>
+        <TaskCreateDialog
+          :account-options="accountOptions"
+          :group-options="groupOptions"
+          @created="fetchTasks"
+        />
+      </div>
     </div>
+
+    <!-- 任务组管理对话框 -->
+    <TaskGroupDialog
+      v-model:open="isGroupDialogOpen"
+      :groups="groups"
+      :tasks="tasks"
+      @create="handleCreateGroup"
+      @update="handleUpdateGroup"
+      @remove="handleRemoveGroup"
+      @start="handleStartGroup"
+      @stop="handleStopGroup"
+    />
 
     <!-- Edit Task Dialog -->
     <Dialog v-model:open="isEditDialogOpen">
@@ -222,6 +322,7 @@ onMounted(fetchAccountOptions)
           mode="edit"
           :initial-data="selectedTask"
           :account-options="accountOptions"
+          :group-options="groupOptions"
           :default-values="editDefaults"
           @submit="(data) => handleUpdateTask(data as TaskUpdate)"
         />
@@ -268,6 +369,7 @@ onMounted(fetchAccountOptions)
 
     <TasksTable
       :tasks="tasks"
+      :groups="groups"
       :is-loading="isLoading"
       :stopping-ids="stoppingTaskIds"
       @delete-task="handleDeleteTask"

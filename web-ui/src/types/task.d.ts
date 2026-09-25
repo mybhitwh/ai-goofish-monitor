@@ -22,8 +22,29 @@ export interface Task {
   region?: string | null;
   decision_mode: 'ai' | 'keyword';
   keyword_rules: string[];
+  group_id?: number | null;
   is_running: boolean;
 }
+
+// 任务组：统一调度配置，组内任务可串行/并行执行
+export interface TaskGroup {
+  id: number;
+  name: string;
+  cron: string | null;
+  execution_mode: 'serial' | 'parallel';
+  enabled: boolean;
+  next_run_at?: string | null;
+  task_count?: number;
+}
+
+export interface TaskGroupCreate {
+  name: string;
+  cron?: string | null;
+  execution_mode?: 'serial' | 'parallel';
+  enabled?: boolean;
+}
+
+export type TaskGroupUpdate = Partial<TaskGroupCreate>;
 
 export type TaskGenerationStatus = 'queued' | 'running' | 'completed' | 'failed';
 export type TaskGenerationStepStatus = 'pending' | 'running' | 'completed' | 'failed';
