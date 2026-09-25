@@ -4,13 +4,16 @@ interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+// 子路径部署：所有请求统一带上 vite base 前缀（默认 "/" 剥尾斜杠为空串，本地 dev 行为不变）
+const BASE_PATH = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
+
 export async function http(url: string, options: FetchOptions = {}) {
   const { logout } = useAuth()
-  
+
   const headers = new Headers(options.headers)
 
   // Handle Query Params
-  let fullUrl = url
+  let fullUrl = url.startsWith('/') ? BASE_PATH + url : url
   if (options.params) {
     const searchParams = new URLSearchParams()
     Object.entries(options.params).forEach(([key, value]) => {

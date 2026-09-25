@@ -52,7 +52,8 @@ export function buildResultExportUrl(filename: string, params: GetResultContentP
     }
   })
   const queryString = searchParams.toString()
-  return `/api/results/${encodeURIComponent(filename)}/export${queryString ? `?${queryString}` : ''}`
+  const basePath = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
+  return `${basePath}/api/results/${encodeURIComponent(filename)}/export${queryString ? `?${queryString}` : ''}`
 }
 
 export function downloadResultExport(filename: string, params: GetResultContentParams = {}) {

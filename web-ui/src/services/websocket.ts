@@ -37,7 +37,8 @@ class WebSocketService {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host; // This includes port if present
 
-    const url = `${protocol}//${host}/ws`;
+    const basePath = (import.meta.env.BASE_URL ?? '/').replace(/\/+$/, '')
+    const url = `${protocol}//${host}${basePath}/ws`;
 
     console.log(`Connecting to WebSocket at ${url}`);
     this.ws = new WebSocket(url);
