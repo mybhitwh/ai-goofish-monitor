@@ -15,14 +15,14 @@ API 层 src/api/routes/ → 服务层 src/services/ → 领域层 src/domain/ �
 - **后端**：入口 `src/app.py`；API 路由 `src/api/routes/`（依赖注入 `src/api/dependencies.py`）；服务层 `src/services/`；领域模型 `src/domain/`；基础设施 `src/infrastructure/`；爬虫与 AI 管线 `src/scraper.py`、`src/ai_handler.py`，爬虫 CLI `spider_v2.py`。
 - **前端**：`web-ui/`（Vue 3 + Vite），视图 `web-ui/src/views/`，组件 `web-ui/src/components/`；构建产物输出到仓库根 `dist/`（vite `outDir` 已指向 `../dist`），SPA 服务直接依赖它。
 - **测试**：`tests/`，含 `unit/`、`integration/`、`live/`（真实流量冒烟，需凭据），文件命名 `test_*.py` 或 `tests/*/test_*.py`。
-- **运行数据与资源**：`static/` 是随仓库发布的静态资源（已跟踪）；`prompts/`、`jsonl/`、`logs/`、`images/`、`state/`、`data/` 为运行时数据（默认不入库，`jsonl/` 只在有任务跑过之后存在）；配置 `config.json` 与 `.env` 位于仓库根目录。
+- **运行数据与资源**：`static/` 是随仓库发布的静态资源（已跟踪）；结果数据存 `data/app.sqlite3`，运行日志、下载图片、登录态分别在 `logs/`、`images/`、`state/`（默认不入库）；`jsonl/` 与 `price_history/` 是历史数据格式，仅首次启动时由 `sqlite_bootstrap` 导入，不再作为结果出口；配置 `config.json` 与 `.env` 位于仓库根目录。
 
 ## 环境约定（u12 主仓，2026-09-25 起）
 
 - **Python**：一律用仓库根 `.venv/bin/python`（系统 `python3` 与 `.venv` 同为 3.10，但项目依赖只装在 `.venv`）；依赖锁定文件为 `uv.lock`。
 - **前端包管理器**：用 **pnpm**（已在 PATH 上）。`web-ui/package-lock.json` 是上游 npm 遗留，不要据此改用 npm。
 - **改动即重建**：任何 `web-ui/` 改动后必须 `cd web-ui && pnpm build`，否则 `dist/` 与源码不一致，SPA 服务读到的还是旧产物。
-- **测试基线**：`.venv/bin/python -m pytest tests/ -s` → 130 passed / 3 failed / 3 skipped（共 136 收集）。3 个失败为存量或平台差异、非新增回归：`test_frontend_build_paths`、`tests/unit/test_task_group.py::test_group_update_partial_apply`（NameError）、`test_save_to_jsonl`；Windows 侧基线为 127 passed / 6 failed。
+- **测试基线**：`.venv/bin/python -m pytest tests/ -s` → 130 passed / 3 failed / 3 skipped（共 136 收集）。3 个失败为存量、非新增回归：`test_frontend_build_paths`（`.dockerignore` 含 `web-ui/dist` 触发断言，属配置漂移）、`tests/unit/test_task_group.py::test_group_update_partial_apply`（NameError）、`test_save_to_jsonl`；Windows 侧基线为 127 passed / 6 failed。
 
 ## 构建、运行与测试
 
@@ -44,7 +44,7 @@ API 层 src/api/routes/ → 服务层 src/services/ → 领域层 src/domain/ �
 ### 测试
 
 - 框架 pytest，默认同步测试，无需 `pytest-asyncio`；配置见 `pyproject.toml`（`testpaths = ["tests"]`，markers `live` / `live_slow`）。
-- 全量：`.venv/bin/python -m pytest tests/ -s`（基线见上）；定向：`.venv/bin/python -m pytest tests/test_utils.py::test_safe_get`。
+- 全量：`.venv/bin/python -m pytest tests/ -s`（基线见上）；定向：`.venv/bin/python -m pytest tests/unit/test_utils.py::test_safe_get_nested_and_default`。
 - 覆盖率：`pytest --cov=src` 或 `coverage run -m pytest`。
 - 真实流量冒烟默认不跑（`-m live`，需真实凭据与外部服务，对应 `tests/live/` 与 `run_live_smoke.sh`）；上游 CI 口径为 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest`，用于排除本机插件干扰。
 - 覆盖重点：核心服务、爬虫管道的异常分支与重试逻辑。PR 前跑相关测试，新增逻辑补针对性用例。
@@ -58,13 +58,13 @@ API 层 src/api/routes/ → 服务层 src/services/ → 领域层 src/domain/ �
 ## 架构与运行时
 
 - 后端用 FastAPI 提供 API 与静态资源；爬虫与 AI 推理在独立任务进程中协作，前后端通过 HTTP / Web UI 交互。
-- 任务运行会写 `jsonl/`（结果）、`logs/`（运行日志）、`images/`（下载图片），前端监控页面依赖这些数据。
+- 任务运行把结果写入 `data/app.sqlite3`（`result_items` 等表，读路径装饰后供前端消费），并写 `logs/`（运行日志）、`images/`（下载图片）；`jsonl/` 只作历史导入，不是结果出口。
 - 前端构建后静态文件由后端或 Docker 镜像直接提供；默认对外 8000 端口。
 
 ## 安全与配置提示
 
 - 复制 `.env.example` 为 `.env`，必填 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL_NAME`；通知渠道（ntfy / Bark / 微信 / Telegram / Gotify / Webhook）按需配置。
-- 不要提交真实凭据或 cookies（如 `state.json`）；`.env`、`config.json`、`state/`、`data/`、`logs/`、`images/`、`jsonl/`、`dist/` 均已在 `.gitignore` 中。注意 `prompts/` 虽被忽略，但库内已有两个跟踪的提示词文件（`base_prompt.txt`、`macbook_criteria.txt`），新增提示词要先 `git add -f`。
+- 不要提交真实凭据或 cookies（如 `state.json`）；`.env`、`state/`、`data/`、`logs/`、`images/`、`jsonl/`、`dist/` 均已在 `.gitignore` 中。注意两个特例：`prompts/` 虽被忽略但库内已有跟踪的提示词文件（`base_prompt.txt`、`macbook_criteria.txt`），新增提示词要先 `git add -f`；`config.json` 虽列在 `.gitignore` 里**却已被 git 跟踪**（历史 force-add），改动它会被提交，动手前先确认。
 - Web 认证默认 `admin/admin123`，生产环境务必修改，推荐启用 HTTPS 并限制访问来源。
 - Playwright 需本地浏览器；Docker 镜像已预装 Chromium。
 
