@@ -100,7 +100,7 @@
 
 - API 主进程（FastAPI/uvicorn，systemd `goofish.service`）：stdout 进 journald。用 `journalctl -u goofish -n 200 --no-pager` 或 `journalctl -u goofish -f`。生命周期打印见 `src/app.py:78-103`（"正在启动应用..." / "应用启动完成" / "正在关闭应用..." / "应用已关闭"）。
 - 任务子进程：**不经过 journald**，全部在 `logs/<任务名>_<任务ID>.log`；Web 界面"日志页按任务展示运行过程"（`README.md:112-115`）走 `/api/logs`。
-- Docker 部署：`docker compose logs -f app`（AGENTS.md:42）。
+- Docker 部署：`docker compose logs -f app`（AGENTS.md「构建、运行与测试 → 一键启动与 Docker」）。
 - 生产健康检查三件套（2026-09-26 在本实例上实测通过）：`systemctl is-active goofish`（active）、`curl 127.0.0.1:8000/api/groups`（200）、`curl 127.0.0.1:8080/goofish/`（200）。
 
 ---

@@ -26,16 +26,16 @@
   .venv/bin/python -m pytest --cov=src          # 覆盖率
   ```
 
-  注意：AGENTS.md:47 的定向示例 `tests/test_utils.py::test_safe_get` 两个字段都已过时（文件在 `tests/unit/`，函数名是 `test_safe_get_nested_and_default`），照抄会报 `not found`；以本文件为准。
+  注意：AGENTS.md「构建、运行与测试 → 测试」里的定向示例 `tests/test_utils.py::test_safe_get` 两个字段都已过时（文件在 `tests/unit/`，函数名是 `test_safe_get_nested_and_default`），照抄会报 `not found`；以本文件为准。
 
 - **u12 基线（2026-09-26 实测，命令 `.venv/bin/python -m pytest tests/ -s -q`）：**
   `collected 151 items` → **145 passed / 3 failed / 3 skipped，约 4s**。
-  （2026-09-26 更新：风控止损任务 `09-25-fix-risk-control-stop-loss` 新增 15 个用例，基线由 130/136 升到本值；`AGENTS.md:25` 已同步。）
+  （2026-09-26 更新：风控止损任务 `09-25-fix-risk-control-stop-loss` 新增 15 个用例，基线由 130/136 升到本值；`AGENTS.md` 的测试基线一条已同步。）
   3 个失败是存量问题，**不是新增回归**，但新改动不得在它们之外新增失败：
   1. `tests/test_frontend_build_paths.py::test_frontend_build_output_path_is_consistent_across_configs` —— 实测挂因：`.dockerignore` 当前包含 `web-ui/dist`，而断言要求不含（`:31`）；不是平台差异，是配置漂移。
   2. `tests/unit/test_task_group.py::test_group_update_partial_apply` —— `NameError: name 'TaskGroupUpdate' is not defined`（测试第 76 行）。
   3. `tests/unit/test_utils.py::test_save_to_jsonl` —— 返回记录被附加 `_status`/`_note`/`_user_tags` 等展示字段，与写入的原始 record 不相等。
-  Windows 侧基线为 127 passed / 6 failed（AGENTS.md:25）。
+  Windows 侧基线为 127 passed / 6 failed（AGENTS.md「环境约定（u12 主仓）」的测试基线一条）。
 - 3 个 skipped 全部是 `tests/live/test_live_smoke.py` 的 live 冒烟；默认跳过，必须显式 `RUN_LIVE_TESTS=1` 才收集执行（`tests/live/conftest.py:25-32`），且需真实凭据与外部服务。上游 CI 口径为 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest`（用于排除本机插件干扰）。
 - 提交前至少跑与改动相关的定向测试；涉及公共路径（`src/utils.py`、`src/services/`）改动跑全量并对照上面的数字。
 
@@ -43,7 +43,7 @@
 
 ## 3. 测试隔离铁律（不写运行态）
 
-**测试禁止写 `data/app.sqlite3`、`state/`、`.env`、`logs/`、`jsonl/`、`images/`、`dist/`、`prompts/`。** 这些是生产实例的运行态，AGENTS.md:99 明确"禁止提交/覆盖/重置"。可用手段（都有真实例证）：
+**测试禁止写 `data/app.sqlite3`、`state/`、`.env`、`logs/`、`jsonl/`、`images/`、`dist/`、`prompts/`。** 这些是生产实例的运行态，AGENTS.md「生产实例运维（u12）」的「运行时状态」一条明确"禁止提交/覆盖/重置"。可用手段（都有真实例证）：
 
 - `tmp_path` + `monkeypatch.chdir(tmp_path)`：结果写入类测试的标准姿势（`tests/unit/test_utils.py:28-30`；`tests/integration/test_api_dashboard.py:19-22`；`tests/integration/test_api_results.py:16-18`）。
 - 数据库路径注入：`tests/conftest.py:108-158` 的 `api_context` 把 `db_path` 指向 `tmp_path / "app.sqlite3"`，并用 `app.dependency_overrides` 覆盖服务（`:154-158`），绝不碰 `data/`。需要走环境变量时用 `APP_DATABASE_FILE`——读取点在 `src/infrastructure/persistence/sqlite_connection.py:146-147`；live 脚手架就是这么做的：`tests/live/_support.py:161-164` 把 `APP_DATABASE_FILE` 指向工作区 `data/live.sqlite3`，并把 `ACCOUNT_STATE_DIR` 指向工作区 `state/`。
@@ -52,14 +52,15 @@
 - `tests/test_frontend_build_paths.py` 是**有意例外**：它只读仓库文件做配置一致性断言（`:10-14`），不产生写入，不算破例。
 - 新测试如果需要"看起来真实"的路径，用 `tmp_path` 拼相对结构，不要断言仓库根的真实文件存在。
 - **`importlib.reload` 会让类身份失效**：`tests/unit/test_scraper_browser_channel.py` 会 reload `src.scraper`；此后其它测试文件在**模块顶层** `from src.scraper import RiskControlError` 拿到的旧类，与 reload 后模块内抛出的新类不再是同一个对象，`pytest.raises`/`except` 会失配（单跑通过、全量跑失败）。新测试一律运行时取类：`importlib.import_module("src.scraper").RiskControlError`（例证：`tests/unit/test_scraper_risk_control.py` 的文件 docstring 与取类写法）。
-- **已知隔离破例（存量，未修）：全量测试会往 `prompts/` 落文件。** `tests/integration/test_api_tasks.py:89-119` 打桩 `task_generation_runner.generate_criteria` 后，`src/services/task_generation_runner.py:48-51` 的 `os.makedirs("prompts", exist_ok=True)` + `aiofiles.open(output_filename, "w")` 是**相对进程 CWD** 写入——从仓库根跑 pytest 就生成 `prompts/<keyword>_criteria.txt`（2026-09-26 实测：每次全量跑重建 41 字节桩文件 `prompts/apple_watch_s10_criteria.txt`，内容为桩字符串 `[V6.3 核心升级]\nApple Watch criteria`；该文件不属于任何生产任务，已删）。修法是测试内 `monkeypatch.chdir(tmp_path)` 或把输出目录做成可注入；在此之前，**跑完全量测试后检查 `prompts/` 有无未跟踪新文件并清掉**。
+- **已修（2026-09-26）：全量测试曾往 `prompts/` 落桩文件。** 机理：`tests/integration/test_api_tasks.py::test_generate_ai_task_returns_job_and_completes_async` 打桩 `generate_criteria` 后，`src/services/task_generation_runner.py:48-52` 的 `os.makedirs("prompts", exist_ok=True)` + `aiofiles.open(output_filename, "w")` 是**相对进程 CWD** 写入，从仓库根跑 pytest 便生成 `prompts/<keyword>_criteria.txt`（41 字节桩文件）。修法：该用例内 `monkeypatch.chdir(tmp_path)`（任务 `09-26-fix-test-prompts-write-isolation`）；隔离后桩文件落 `/tmp/pytest-of-*/…`，`prompts/` 无新增、生产产物 `prompts/ipad_air_m4_criteria.txt` mtime 不变。**生产路径语义未变**（生产 CWD=仓库根是设计，DB 的 `ai_prompt_criteria_file` 存相对值，不要改成绝对路径）。同一写法的第二个入口在 `src/api/routes/tasks.py:201-215`（PATCH 重新生成分支），当前无测试覆盖；给它补测试时同样要 CWD 隔离。
+- **已知隔离破例（存量，未修）：`tests/unit/test_process_service.py:29-74` 会打开生产库。** `test_process_service_marks_task_stopped_when_process_exits` 未桩掉 `find_task_by_name_sync`（`src/services/process_service.py:57`），默认库路径 `data/app.sqlite3`（`src/infrastructure/persistence/storage_names.py:7`）被以 WAL 模式打开，产生并删除瞬时 `-wal`/`-shm`，**只改 `data/` 目录的 mtime，库文件字节与 mtime 不变**（2026-09-26 由隔离修复的检查子代理二分定位）。修法：该用例加 `monkeypatch.setenv("APP_DATABASE_FILE", str(tmp_path / "app.sqlite3"))`，或像同文件 `_isolate_cookie_resolution` 那样桩掉 `find_task_by_name_sync`。在此之前，**别用 `data/` 目录 mtime 判断「运行态是否被触碰」**——要看文件级 mtime 或哈希。
 
 ---
 
 ## 4. 前端构建纪律
 
-- 任何 `web-ui/` 改动后**必须** `cd web-ui && pnpm build`；否则 SPA 服务读到的 `dist/` 还是旧产物（AGENTS.md:24）。
-- 包管理器用 **pnpm**，不要用 npm：`web-ui/package-lock.json` 是上游 npm 遗留（AGENTS.md:23）。
+- 任何 `web-ui/` 改动后**必须** `cd web-ui && pnpm build`；否则 SPA 服务读到的 `dist/` 还是旧产物（AGENTS.md「环境约定（u12 主仓）」的「改动即重建」一条）。
+- 包管理器用 **pnpm**，不要用 npm：`web-ui/package-lock.json` 是上游 npm 遗留（AGENTS.md「环境约定（u12 主仓）」的前端包管理器一条）。
 - 产物输出到仓库根 `dist/`（vite `outDir`），且 `dist/` 不入库（`.gitignore:11`）。
 - `tests/test_frontend_build_paths.py:14-33` 是路径一致性钉子：同时断言 `web-ui/vite.config.ts` 的 `path.resolve(__dirname, '../dist')`、两个 Dockerfile 的 `COPY ... /dist`、`.dockerignore` 与 `start.sh`。改 Docker/前端构建路径时先跑它；它当前是存量失败（见第 2 节），修它属于独立任务，不要顺手改断言来"变绿"。
 
@@ -67,11 +68,11 @@
 
 ## 5. 提交规范（中文 Conventional Commits）
 
-- 类型：`feat(...)` / `fix(...)` / `refactor(...)` / `chore(...)` / `docs(...)`，描述用中文（AGENTS.md:73）。近期真实样例：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖`（4c0f1d0）、`chore(prompts): 行尾符 CRLF 规范化（内容不变）`（2ae6546）、`feat(web-ui): 结果卡片就地标注与屏蔽理由选择`（e35f223）。
+- 类型：`feat(...)` / `fix(...)` / `refactor(...)` / `chore(...)` / `docs(...)`，描述用中文（AGENTS.md「提交与 PR 规范」）。近期真实样例：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖`（4c0f1d0）、`chore(prompts): 行尾符 CRLF 规范化（内容不变）`（2ae6546）、`feat(web-ui): 结果卡片就地标注与屏蔽理由选择`（e35f223）。
 - 拆分粒度：一个提交一个主题；后端与前端改动分提交（见 `git log --oneline` 中 `feat(backend): 商品标注存储与 API` 与紧随的 `feat(web-ui): ...` 是两次提交）。
 - 提交节奏（合并什么、什么必须独立）：见 `AGENTS.md`「提交与 PR 规范」的提交节奏小节——任务创建+规划合成一条、同会话 trellis 文档收口合成一条、同文件小改攒批；两条承重提交与后端/前端工作改动不受影响。
-- **两个承重提交按 commit message 认，不认 sha**：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖` 与 prompts CRLF 规范化（`chore(prompts): 行尾符 CRLF 规范化（内容不变）`）。rebase/reset 后必须能按 message 找回，systemd 单元依赖它们（AGENTS.md:100）。`git log --oneline --all --grep="SERVER_HOST"` 与 `--grep="CRLF"` 可验证仍在。
-- remote 口径：`origin` = fork `mybhitwh/ai-goofish-monitor`（推送目标）；GitHub 走全局代理，fetch/push 失败先查代理，**管道后显式查退出码，防吞错假绿**（AGENTS.md:101-102）。
+- **两个承重提交按 commit message 认，不认 sha**：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖` 与 prompts CRLF 规范化（`chore(prompts): 行尾符 CRLF 规范化（内容不变）`）。rebase/reset 后必须能按 message 找回，systemd 单元依赖它们（AGENTS.md「生产实例运维（u12）」的「提交纪律」一条）。`git log --oneline --all --grep="SERVER_HOST"` 与 `--grep="CRLF"` 可验证仍在。
+- remote 口径：`origin` = fork `mybhitwh/ai-goofish-monitor`（推送目标）；GitHub 走全局代理，fetch/push 失败先查代理，**管道后显式查退出码，防吞错假绿**（AGENTS.md「生产实例运维（u12）」的「git 网络」与「remote 口径」两条）。
 
 ---
 
@@ -79,7 +80,7 @@
 
 - `.gitignore` 已覆盖：`.env`（`:4`）、`logs/`（`:7`）、`dist/`（`:11`）、`state/`（`:12`）、`data/`（`:17`）、`config.json`、`images/`、`jsonl/`、`price_history/`。
 - 用 `git check-ignore -v logs/task-failure-guard.json data/app.sqlite3 state/acc1.json .env dist/index.html` 验证（五条全部命中）；新增运行态文件时先确认规则，别用 `git add -f` 绕过。
-- **`prompts/` 是特例**：目录被忽略，但库内已有两个跟踪文件 `prompts/base_prompt.txt`、`prompts/macbook_criteria.txt`（`git ls-files prompts/` 实证）。新增提示词文件需要 `git add -f`（AGENTS.md:67）。
+- **`prompts/` 是特例**：目录被忽略，但库内已有两个跟踪文件 `prompts/base_prompt.txt`、`prompts/macbook_criteria.txt`（`git ls-files prompts/` 实证）。新增提示词文件需要 `git add -f`（AGENTS.md「安全与配置提示」）。
 - 禁止提交的运行时状态：`data/`（`app.sqlite3` 业务库）、`state/`（闲鱼登录态）、`.env`（密钥）。**禁止为了"让 diff 干净"而 reset/checkout 这三个**。
 
 ---
@@ -101,13 +102,13 @@
 
 ## 8. 代码审查清单（本仓库口径）
 
-- **跨层一致性**：调用方向必须 API → services → domain → infrastructure，不跨层直连（AGENTS.md:8-10）；路由用 `src/api/dependencies.py` 注入，集成测试也照此 override。参考 `.trellis/spec/guides/cross-layer-thinking-guide.md`。
+- **跨层一致性**：调用方向必须 API → services → domain → infrastructure，不跨层直连（AGENTS.md「项目概览」的分层图）；路由用 `src/api/dependencies.py` 注入，集成测试也照此 override。参考 `.trellis/spec/guides/cross-layer-thinking-guide.md`。
 - **重复实现**：先搜 `src/utils.py`、`src/services/` 是否已有同类函数；沿用兼容包装是既有先例（`save_to_jsonl` → `save_result_record`，`src/utils.py:122-128`），但不要为新功能再包一层。参考 `.trellis/spec/guides/code-reuse-thinking-guide.md`。
 - **错误吞没**：`except` 后要么打印、要么写证据文件、要么向上抛；静默 `pass` 必须带注释说明为什么不影响主流程。存量两处静默先例（`src/services/item_recheck_service.py:47-48` 证据写入、`src/failure_guard.py:127-133` 损坏文件隔离）**都缺独立用例**——新增代码不要沿用这个缺口。语义细节见 `error-handling.md`。
 - **是否触碰运行态**：改动/测试是否读写 `data/`、`state/`、`.env`、`logs/`；测试必须用第 3 节手段隔离。
 - **日志合规**：新日志是否含 cookies、密钥、大 payload；是否遵循前缀/截断/保留策略（见 `logging-guidelines.md`）。
 - **前端改动**：是否已 `pnpm build`、`dist/` 与源码一致。
-- **测试结果**：是否对照第 2 节基线；新增逻辑是否补了针对性用例（AGENTS.md:50）。
+- **测试结果**：是否对照第 2 节基线；新增逻辑是否补了针对性用例（AGENTS.md「构建、运行与测试 → 测试」的覆盖重点一条）。
 
 ---
 
