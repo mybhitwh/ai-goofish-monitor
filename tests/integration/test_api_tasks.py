@@ -75,7 +75,8 @@ def test_generate_keyword_mode_task_without_ai_criteria(api_client):
     assert created["keyword_rules"] == ["a7m4", "验货宝"]
 
 
-def test_generate_ai_task_returns_job_and_completes_async(api_client, api_context, monkeypatch):
+def test_generate_ai_task_returns_job_and_completes_async(api_client, api_context, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     payload = {
         "task_name": "Apple Watch S10",
         "keyword": "apple watch s10",
