@@ -1,0 +1,3 @@
+{"file": "AGENTS.md", "reason": "环境约定：Python 一律用 .venv/bin/python、测试基线 145 passed / 3 failed / 3 skipped、运行态 data/ state/ .env logs/ config.json 禁止写入"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "§3 测试隔离铁律（tmp_path + monkeypatch.chdir 是既有标准姿势）、§2 基线口径、§9 反模式（不得改断言让用例变绿）"}
+{"file": ".trellis/tasks/09-26-fix-test-prompts-write-isolation/prd.md", "reason": "本任务 R1/R2、AC1-AC4 与 Non-goals：只改测试、不动 src 路径语义、不碰 prompts/ipad_air_m4_criteria.txt"}

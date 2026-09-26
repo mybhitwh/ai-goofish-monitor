@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-26-fix-test-prompts-write-isolation/prd.md", "reason": "按 AC1-AC4 逐条取证：全量跑后 prompts/ 无新增且生产产物 mtime 不变、断言未削弱、基线不劣化且失败同名同因、运行态未触碰"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "核对隔离姿势符合 §3、基线口径符合 §2、未落入 §9 反模式（改断言或放过新失败）"}
+{"file": "AGENTS.md", "reason": "核对中文 Conventional Commits 提交风格与拆分粒度；确认未触碰 data/ state/ .env"}
