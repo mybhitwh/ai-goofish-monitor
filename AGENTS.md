@@ -22,7 +22,7 @@ API 层 src/api/routes/ → 服务层 src/services/ → 领域层 src/domain/ �
 - **Python**：一律用仓库根 `.venv/bin/python`（系统 `python3` 与 `.venv` 同为 3.10，但项目依赖只装在 `.venv`）；依赖锁定文件为 `uv.lock`。
 - **前端包管理器**：用 **pnpm**（已在 PATH 上）。`web-ui/package-lock.json` 是上游 npm 遗留，不要据此改用 npm。
 - **改动即重建**：任何 `web-ui/` 改动后必须 `cd web-ui && pnpm build`，否则 `dist/` 与源码不一致，SPA 服务读到的还是旧产物。
-- **测试基线**：`.venv/bin/python -m pytest tests/ -s` → 130 passed / 3 failed / 3 skipped（共 136 收集）。3 个失败为存量、非新增回归：`test_frontend_build_paths`（`.dockerignore` 含 `web-ui/dist` 触发断言，属配置漂移）、`tests/unit/test_task_group.py::test_group_update_partial_apply`（NameError）、`test_save_to_jsonl`；Windows 侧基线为 127 passed / 6 failed。
+- **测试基线**：`.venv/bin/python -m pytest tests/ -s` → 145 passed / 3 failed / 3 skipped（共 151 收集；2026-09-26 风控止损任务新增 15 个用例后由 130/136 升到本值）。3 个失败为存量、非新增回归：`test_frontend_build_paths`（`.dockerignore` 含 `web-ui/dist` 触发断言，属配置漂移）、`tests/unit/test_task_group.py::test_group_update_partial_apply`（NameError）、`test_save_to_jsonl`；Windows 侧基线为 127 passed / 6 failed。
 
 ## 构建、运行与测试
 
@@ -72,6 +72,22 @@ API 层 src/api/routes/ → 服务层 src/services/ → 领域层 src/domain/ �
 
 - Commit 用中文类 Conventional Commits：`feat(...)`、`fix(...)`、`refactor(...)`、`chore(...)`、`docs(...)` 等。
 - PR 需说明变更范围与影响模块；UI 变更在 `web-ui/` 提供截图；关联相关 Issue；提及配置或迁移步骤。
+
+### 提交节奏（2026-09-26 定）
+
+Trellis 让每个任务固定产生多条流程提交（创建、文档收口、归档、日志）。实测 9-25/9-26 两天 29 个提交里 14 个属流程与文档，其中可合并的部分按下面三条压掉：
+
+- **任务创建与规划合成一条**：`task.py create` 之后先不提交，等 `prd.md`（复杂任务含 `design.md` / `implement.md`）落盘再一起提交，形如 `chore(trellis): 新建并规划 <slug>（<一句话范围>）`。
+- **同一会话的 trellis 文档收口合成一条**：同一个任务的「同步 spec」「实施清单收口」等 `docs(trellis)` 编辑攒成一条 `docs(trellis): <任务> 收口（<具体内容>）`，不要每份文档一条。
+- **同文件小改攒批**：同一轮工作内对 `AGENTS.md`、`.trellis/spec/**` 的多次小改（补一行、改一行）合并提交。
+
+以下必须独立成提交，不参与合并：
+
+- 两条承重提交（`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖`、`chore(prompts): 行尾符 CRLF 规范化（内容不变）`）——按 message 认、不认 sha，合并即失去可寻性。
+- 后端与前端的工作改动分提交（拆分粒度不变）。
+- 脚本自动产生的 `chore(task): archive <任务>` 与 `chore: record journal`——窄路径由 `task.py` / `add_session.py` 控制，不要手工合并或 `--amend`。
+
+**多窗口并行（同一工作区开两个会话）**：Phase 3.4 的「哪些脏文件是我改的」这一步会双向失效——自己的提交一律用 `git commit -m <msg> -- <paths>`（绝不 `git add -A`），提交前先 `git status` 看有没有已被另一个窗口带走；发现自己的改动被人批量提交时，核对 diff 后接受，不要为了拆分去 rebase 改写历史。
 
 ## 生产实例运维（u12）
 

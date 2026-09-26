@@ -31,12 +31,12 @@
 
 ## Acceptance Criteria
 
-- [ ] 任务列表中，`group_id=0` 的任务显示组徽章、组名与组 cron（不再是任务自身 cron +「等待调度」）；`group_id=null` 的任务仍显示为无组；`group_id` 为其他数字的组同样正常。
-- [ ] `group_id=null` 的任务行为不回归（不显示任何组信息）。
-- [ ] `grep` 复核：`web-ui/src` 内不再有 `!task.group_id` / `!task?.group_id` 形态的判定。
-- [ ] `cd web-ui && pnpm build` 通过；`tests/test_frontend_build_paths.py` 状态与基线一致（该用例为存量失败，属配置漂移，不得为它改断言）。
-- [ ] `.venv/bin/python -m pytest tests/ -s` 不劣于基线（145 passed / 3 failed / 3 skipped）。
-- [ ] 验证证据落 `check.jsonl` 或完成说明：改前/改后的界面截图或 DOM 断言（取值 `group_id=0` 的任务）。
+- [x] 任务列表中，`group_id=0` 的任务显示组徽章、组名与组 cron（不再是任务自身 cron +「等待调度」）；`group_id=null` 的任务仍显示为无组；`group_id` 为其他数字的组同样正常。→ 实时页面 DOM 断言：行内出现 `iPad Air 8 · 串行执行`、无「等待调度」/「手动」；改前/改后源码执行级对照见 `evidence.md`（AC1）
+- [x] `group_id=null` 的任务行为不回归（不显示任何组信息）。→ 对照表中 `null` 一列改动前后逐项一致（生产库无 null 样本，见 `evidence.md` AC2）
+- [x] `grep` 复核：`web-ui/src` 内不再有 `!task.group_id` / `!task?.group_id` 形态的判定。→ 唯一命中 `TaskGroupDialog.vue:256` 的正确写法；另普查 17 处 `group_id` 用法无第三处假值
+- [x] `cd web-ui && pnpm build` 通过；`tests/test_frontend_build_paths.py` 状态与基线一致（该用例为存量失败，属配置漂移，不得为它改断言）。→ `vue-tsc -b && vite build` rc=0，`dist/` 含修复形态且重建逐字节一致；该用例失败同因基线，断言与 `.dockerignore` 未动
+- [x] `.venv/bin/python -m pytest tests/ -s` 不劣于基线（145 passed / 3 failed / 3 skipped）。→ 实测 `3 failed, 145 passed, 3 skipped in 4.02s`，失败三项与基线同名同因
+- [x] 验证证据落 `check.jsonl` 或完成说明：改前/改后的界面截图或 DOM 断言（取值 `group_id=0` 的任务）。→ `evidence.md` + `evidence/after-tasks-list-group-badge.png`（改前以源码执行级对照替代界面截图，理由见 evidence 末尾）
 
 ## Non-goals
 

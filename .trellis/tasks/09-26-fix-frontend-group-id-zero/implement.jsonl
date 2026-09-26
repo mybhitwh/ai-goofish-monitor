@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "group_id 的「null=无组 / 数字=组 id（0 合法）」语义横跨后端 DTO 与前端类型及组件，本任务只改判定不改契约，动手前先确认各层语义一致"}
+{"file": ".trellis/tasks/archive/2026-09/09-25-fix-risk-control-stop-loss/prd.md", "reason": "同一缺陷类的后端侧修复（R1：if task.group_id else None → is not None）及其前因（组 id=0 被当无组导致重复调度、触发风控）；本任务是它在 UI 侧的收口，语义必须与后端一致"}

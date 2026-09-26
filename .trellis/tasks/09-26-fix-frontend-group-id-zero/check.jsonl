@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "复核「判定改了、契约未变」：group_id 仍是 number | null，0 必须与其它数字同等对待，null 行为不回归"}
+{"file": ".trellis/tasks/archive/2026-09/09-25-fix-risk-control-stop-loss/prd.md", "reason": "复核前端语义与后端 R1 修复一致：null=无组（对应后端 test_task_without_group_keeps_individual_job 的一侧），0=合法组 id"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复核 resolveGroup 与 groupName 收敛到与 TaskGroupDialog.vue 既有 != null 范式一致的写法，不为两行判定另造 helper"}
