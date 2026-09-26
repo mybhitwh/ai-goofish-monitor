@@ -89,6 +89,8 @@ Trellis 让每个任务固定产生多条流程提交（创建、文档收口、
 
 **多窗口并行（同一工作区开两个会话）**：Phase 3.4 的「哪些脏文件是我改的」这一步会双向失效——自己的提交一律用 `git commit -m <msg> -- <paths>`（绝不 `git add -A`），提交前先 `git status` 看有没有已被另一个窗口带走；发现自己的改动被人批量提交时，核对 diff 后接受，不要为了拆分去 rebase 改写历史。
 
+**改写边界**：未推送的提交流可以在用户要求下整理（同类提交合并等），已推送的一律不改写；整理后必须同步 `.trellis/workspace/*/journal-*.md` 与 `index.md` 里的 hash 引用（改写会级联改写脚本产生的 archive / journal 提交），并用 `git diff <备份标签> master` 确认除预期以外零差异、两条承重提交仍能按 message 找回。
+
 ## 生产实例运维（u12）
 
 - 本仓库同时是生产实例，由 systemd `goofish.service` 托管。

@@ -43,7 +43,7 @@
 
 ## 3. 测试隔离铁律（不写运行态）
 
-**测试禁止写 `data/app.sqlite3`、`state/`、`.env`、`logs/`、`jsonl/`、`images/`、`dist/`、`prompts/`。** 这些是生产实例的运行态，AGENTS.md:97 明确"禁止提交/覆盖/重置"。可用手段（都有真实例证）：
+**测试禁止写 `data/app.sqlite3`、`state/`、`.env`、`logs/`、`jsonl/`、`images/`、`dist/`、`prompts/`。** 这些是生产实例的运行态，AGENTS.md:99 明确"禁止提交/覆盖/重置"。可用手段（都有真实例证）：
 
 - `tmp_path` + `monkeypatch.chdir(tmp_path)`：结果写入类测试的标准姿势（`tests/unit/test_utils.py:28-30`；`tests/integration/test_api_dashboard.py:19-22`；`tests/integration/test_api_results.py:16-18`）。
 - 数据库路径注入：`tests/conftest.py:108-158` 的 `api_context` 把 `db_path` 指向 `tmp_path / "app.sqlite3"`，并用 `app.dependency_overrides` 覆盖服务（`:154-158`），绝不碰 `data/`。需要走环境变量时用 `APP_DATABASE_FILE`——读取点在 `src/infrastructure/persistence/sqlite_connection.py:146-147`；live 脚手架就是这么做的：`tests/live/_support.py:161-164` 把 `APP_DATABASE_FILE` 指向工作区 `data/live.sqlite3`，并把 `ACCOUNT_STATE_DIR` 指向工作区 `state/`。
@@ -70,8 +70,8 @@
 - 类型：`feat(...)` / `fix(...)` / `refactor(...)` / `chore(...)` / `docs(...)`，描述用中文（AGENTS.md:73）。近期真实样例：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖`（4c0f1d0）、`chore(prompts): 行尾符 CRLF 规范化（内容不变）`（2ae6546）、`feat(web-ui): 结果卡片就地标注与屏蔽理由选择`（e35f223）。
 - 拆分粒度：一个提交一个主题；后端与前端改动分提交（见 `git log --oneline` 中 `feat(backend): 商品标注存储与 API` 与紧随的 `feat(web-ui): ...` 是两次提交）。
 - 提交节奏（合并什么、什么必须独立）：见 `AGENTS.md`「提交与 PR 规范」的提交节奏小节——任务创建+规划合成一条、同会话 trellis 文档收口合成一条、同文件小改攒批；两条承重提交与后端/前端工作改动不受影响。
-- **两个承重提交按 commit message 认，不认 sha**：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖` 与 prompts CRLF 规范化（`chore(prompts): 行尾符 CRLF 规范化（内容不变）`）。rebase/reset 后必须能按 message 找回，systemd 单元依赖它们（AGENTS.md:98）。`git log --oneline --all --grep="SERVER_HOST"` 与 `--grep="CRLF"` 可验证仍在。
-- remote 口径：`origin` = fork `mybhitwh/ai-goofish-monitor`（推送目标）；GitHub 走全局代理，fetch/push 失败先查代理，**管道后显式查退出码，防吞错假绿**（AGENTS.md:99-100）。
+- **两个承重提交按 commit message 认，不认 sha**：`fix(server): 监听地址支持 SERVER_HOST 环境变量覆盖` 与 prompts CRLF 规范化（`chore(prompts): 行尾符 CRLF 规范化（内容不变）`）。rebase/reset 后必须能按 message 找回，systemd 单元依赖它们（AGENTS.md:100）。`git log --oneline --all --grep="SERVER_HOST"` 与 `--grep="CRLF"` 可验证仍在。
+- remote 口径：`origin` = fork `mybhitwh/ai-goofish-monitor`（推送目标）；GitHub 走全局代理，fetch/push 失败先查代理，**管道后显式查退出码，防吞错假绿**（AGENTS.md:101-102）。
 
 ---
 
