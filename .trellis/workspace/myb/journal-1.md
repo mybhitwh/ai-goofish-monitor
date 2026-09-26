@@ -89,3 +89,47 @@
 - 冷却到期（2026-09-26 21:34）后启用任务组与成员任务，观测首轮：journalctl 只见组规则、爬虫峰值 ≤1、若命中风控应出现 CRITICAL BLOCK 后立即中止并写入 paused_until + 通知（AC3 端到端，单测不覆盖）
 - 首轮若异常：revert 5598103 并重启服务（提权命令由用户执行），任务保持禁用；观测点见归档任务的 implement.md
 - 前端同类假值任务 09-26-fix-frontend-group-id-zero 待评审后进入实现
+
+
+## Session 3: 前端 group_id 假值修复落地（组徽章与组 cron 恢复显示）
+<!-- trellis-session: v=2 fp=3220412bc62452f6 -->
+
+**Date**: 2026-09-26
+**Task**: 前端 group_id 假值修复落地（组徽章与组 cron 恢复显示）
+**Branch**: `master`
+
+### Summary
+
+两处单行判定修复 + 独立质检通过 + 实时页面 DOM 证据闭环，任务归档、spec 同步（含两条既有破例）
+
+### Main Changes
+
+- R1：TasksTable.vue:53 与 useTasks.ts:68 的 !task.group_id 改为 task.group_id == null（与 TaskGroupDialog.vue 既有范式一致）；只改判定，group_id: number | null 契约不变（0 合法）；pnpm build 重建 dist/
+- 界面证据闭环：headless Chrome 读实时 SPA /goofish/tasks，两条 group_id=0 任务显示「iPad Air 8 · 串行执行」徽章、触发规则列 0 9,21 * * *／已禁用，无「等待调度」/「手动」；改前行为由质检子代理用 esbuild 执行 HEAD vs worktree 源码对照（badge null → iPad Air 8）
+- spec 同步：quality-guidelines §2 基线 130/136 → 145/151、§3 禁止写运行态补 prompts/ 并记录已知破例（全量测试经 task_generation_runner.py:48-51 写 prompts/<keyword>_criteria.txt）、§9 反模式补「id 从 0 起不得用真值判断」；AGENTS.md:25 基线同步
+- 相邻项（未改，已记录）：TasksTable.vue:496 倒计时外框样式不感知组（Non-goals，纯样式）；测试写 prompts/ 可另立小任务修
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `bd0fc72` | fix(web-ui): 组 id=0 判定改为「非 null 即属于组」（组徽章与组 cron 恢复显示） |
+| `b6a0e9a` | docs(trellis): 前端 group_id 任务收口（AC 与证据、规范同步、提交节奏与多窗口纪律） |
+| `eb97952` | chore(task): archive 09-26-fix-frontend-group-id-zero |
+
+### Testing
+
+- [OK] [OK] .venv/bin/python -m pytest tests/ -s -q → 3 failed / 145 passed / 3 skipped（失败三项与基线同名同因）
+- [OK] [OK] cd web-ui && pnpm build（vue-tsc -b && vite build）rc=0；dist/ 与源码一致，质检方重建结果逐字节一致
+- [OK] [OK] 独立质检子代理逐条核 AC：AC1–AC5 通过；AC6 由主会话补实时 DOM 断言 + 截图（任务 evidence/）
+- [OK] [OK] 运行时状态未被触碰：data/、state/、.env、config.json、logs/ 的 mtime 早于改动窗口；窗口内唯一新增文件是测试残渣 prompts/apple_watch_s10_criteria.txt（已删）
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 今晚 21:34 冷却到期后启用任务组与成员任务并观测首轮（前端已上线无需重启；AC1 生产观测点见归档的风控任务 implement.md）
+- 其余 6 个 09-25 任务逐个走 1.4 评审门 + task.py start，用户要求逐次确认；建议 P1 三个（ai-moderation / 屏蔽语义 / ai-tag）在前
+- 可选小任务：修测试写 prompts/（monkeypatch.chdir(tmp_path) 或可注入输出目录）；TasksTable.vue:496 外框样式改为组感知
