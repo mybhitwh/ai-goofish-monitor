@@ -1,38 +1,129 @@
-# Backend Development Guidelines
+# 后端开发规范（导航）
 
-> Best practices for backend development in this project.
-
----
-
-## Overview
-
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+> 本目录是 ai-goofish-monitor 的**团队编码规范库**：给后续的 AI 子代理与新同事看，照着它写后端代码。
+> 记录的是**代码实际怎么做**（含历史偏离），不是理想设计；每条规则尽量给真实文件锚点。
 
 ---
 
-## Guidelines Index
+## 本目录用途
 
-| Guide | Description | Status |
-|-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+- 读者是「准备改这个仓库的人/代理」：先在这里找到对应主题的规范，再去动代码。
+- 规范与 `AGENTS.md` 的分工：`AGENTS.md` 是仓库权威约定（环境、命令、生产运维、提交纪律），本目录是它下钻到代码层的补充；**两者冲突时以 `AGENTS.md` 为准**，例外是 `AGENTS.md` 里已被代码证伪的过时示例（如定向测试路径、对存量失败原因的笼统描述）——以本目录为准，并回写 `AGENTS.md`。
+- 本目录只覆盖后端与仓库结构。前端构建/运行方式见 `AGENTS.md` 与 `web-ui/` 自身配置。
+- 上游文档（`README.md` / `README_EN.md`）是上游口径的部署说明，与主仓约定冲突时以 `AGENTS.md` + 本目录为准。
 
 ---
 
-## How to Fill These Guidelines
+## 文件清单
 
-For each guideline file:
+| 文件 | 一句话职责 |
+|------|------------|
+| [directory-structure.md](./directory-structure.md) | 代码放哪、怎么命名、层与层允许怎么依赖：目录布局、实际依赖方向核查、新增文件决策表、禁止/反模式 |
+| [database-guidelines.md](./database-guidelines.md) | 数据持久化口径：SQLite 表结构与连接管理、仓储与存储服务的职责划分、查询与迁移约定 |
+| [error-handling.md](./error-handling.md) | 异常语义：错误类型、抛/捕获边界、HTTP 状态码映射、失败任务与通知的判定 |
+| [logging-guidelines.md](./logging-guidelines.md) | 日志口径：日志写到哪里（任务日志/`print`/前端流）、级别与格式、什么不该记录 |
+| [quality-guidelines.md](./quality-guidelines.md) | 质量闸门：测试与构建命令、提交/PR 规范、代码审查与验收标准、哪些检查必须跑 |
 
-1. Document your project's **actual conventions** (not ideals)
-2. Include **code examples** from your codebase
-3. List **forbidden patterns** and why
-4. Add **common mistakes** your team has made
+补充说明：
 
-The goal is to help AI assistants and new team members understand how YOUR project works.
+- 5 份文件是「做什么/放哪/怎么写」的规范；`guides/` 下的两份思考指南是「动手前怎么想」，独立成篇，不计入本清单。
+- 每份文件自包含，可单独阅读；出现跨主题内容时只在一处详述，其余用一行交叉引用。
 
 ---
 
-**Language**: All documentation should be written in **English**.
+## 边界说明（避免找错文件）
+
+- 「某个文件该放哪个目录」「import 方向对不对」→ directory-structure。
+- 「这个 SQL/表/迁移写在哪、怎么写」→ database-guidelines。
+- 「这个错误该抛什么、怎么变成响应」→ error-handling。
+- 「这条信息该不该打日志、打到哪」→ logging-guidelines。
+- 「改完怎么验证、提交格式」→ quality-guidelines。
+- 跨层数据流怎么想、怎么避免重复实现 → `../guides/cross-layer-thinking-guide.md` 与 `../guides/code-reuse-thinking-guide.md`。
+- 任务流程、阶段与技能路由、任务目录 → `../../workflow.md` 与 `../../tasks/`。
+
+---
+
+## 快速索引（按信号定位）
+
+| 你遇到的信号 | 先读 |
+|--------------|------|
+| 不知道新写的模块该放 `services` 还是 `infrastructure` | directory-structure 的决策表 |
+| 想 import 一个「上层」模块，心里没底 | directory-structure 的「实际依赖方向」 |
+| 要加一张表 / 一个查询 / 一次数据迁移 | database-guidelines |
+| 要决定错误返回 400 还是 500、要不要吞异常 | error-handling |
+| 想加一行 `print` 或一条运行日志 | logging-guidelines |
+| 改完不确定要跑什么、提交怎么写 | quality-guidelines |
+| 发现代码与本目录说法不一致 | 先按「维护约定」处理，再动代码 |
+
+---
+
+## 常见误区（关于本目录本身）
+
+- 这里不是教程：不解释 FastAPI/Vue 怎么用，只讲本仓库的落点与约定。
+- 这里不是设计文档：不写「将来要重构成什么样」，只记录当前代码的事实与新增代码的规矩。
+- 规范不替代 `grep`：动手前仍要先搜同类实现，规范只保证你「落在正确的层、起正确的名」。
+- `guides/` 与 `backend/` 不要混读：前者是思考清单（问题驱动），后者是执行规则（落点驱动）。
+
+---
+
+## 阅读顺序建议
+
+按任务类型选路线，不必从头读：
+
+1. **第一次接触本仓库**：`directory-structure.md` → `quality-guidelines.md`（知道往哪写、怎么写完能验收）→ 按需翻其余三份。
+2. **加一个 HTTP 接口/后端功能**：`directory-structure.md`（决策表定位落点）→ `error-handling.md`（失败怎么返回）→ `database-guidelines.md`（如需落库）。
+3. **改爬虫/AI 管线**：`directory-structure.md` 的「管线与 CLI」段 → `logging-guidelines.md`（任务日志是线上排障入口）→ `quality-guidelines.md` 的 live 测试口径。
+4. **重构/移动文件**：`directory-structure.md` 的「实际依赖方向」与「禁止/反模式」→ `../guides/cross-layer-thinking-guide.md`。
+5. **线上问题复盘**：`logging-guidelines.md`（日志在哪）→ `error-handling.md`（失败分类）→ `database-guidelines.md`（数据状态）。
+6. **写前端**：本目录不覆盖；读 `AGENTS.md` 的「环境约定」与 `web-ui/vite.config.ts`，记住改完必须重建 `dist/`。
+
+---
+
+## 使用方式
+
+编码前：
+
+- 用 `directory-structure.md` 的「新增文件该放哪」决策表确定落点，再确认依赖方向不越层。
+- 涉及数据库或异常语义时，对照对应文件；不要凭直觉发明新仓储、新错误类型或新日志通道。
+- 规则拿不准时，先在代码里搜同类实现（`grep` 现有调用方），再决定怎么写。
+
+编码中：
+
+- 与本目录规则冲突的既有代码不要顺手改造（存量偏离有历史原因），但**新增代码必须按规范走**。
+- 触及 `data/`、`state/`、`.env` 时先停下：这些是生产实例运行时状态，禁止提交/覆盖/重置（见 `AGENTS.md` 运维段）。
+
+编码后：
+
+- 按 `quality-guidelines.md` 跑验证；前端改动必须重建 `dist/`。
+- 若发现规范与代码不一致，改规范或改代码**二选一当场解决**，不要留「待确认」的模糊状态。
+
+评审时：
+
+- 优先检查 `directory-structure.md` 的「禁止/反模式」清单；该清单是历史踩坑的沉淀，不是风格偏好。
+- 评审意见如果依赖本目录的某条规则，引用文件名与规则编号，便于反驳与修订。
+
+---
+
+## 维护约定
+
+- **新增约定**：当同一模式在代码里稳定出现 2–3 次（或某次 bug 复盘得出教训），把它写进最贴题的那份文件，附 2–3 个 `文件:行号` 锚点；不要写成口号。
+- **事实变更**：目录调整、模块改名、配置系统迁移这类改动，改完代码同步改 `directory-structure.md`，否则下一位读者会照着过期地图走。
+- **不留空段**：不允许「待补」式段落或空标题；没核实的写法宁可不写（本目录的立场是证据优先）。
+- **单一来源**：一条规则只写在一个文件里，其他文件用一行交叉引用；`guides/` 只放「怎么想」，不放具体目录/命名规则。
+- **不改 `AGENTS.md` 的 Trellis 区块**：自动维护区块（`<!-- TRELLIS:START -->` 起止）由 `trellis update` 覆盖，人工内容写在区块外。
+- **新增文件**：只有出现一个无法归入现有 5 份的主题时才加文件；加完回来更新上面的「文件清单」与「边界说明」。
+
+---
+
+## 语言与写作约定
+
+- 正文用**中文**；文件路径、命令、标识符、代码片段保持英文原样（如 `src/api/routes/tasks.py`、`TaskService`、`pnpm build`）。
+- 每条规则给真实例证（`文件:行号` 或 `文件::符号名`）；允许短片段，不整段贴代码。
+- 区分「应该」与「现状」：存量偏离如实标注为历史现状，并说明新增代码的正确做法。
+- 描述口径以仓库根目录为准（工作目录 = 仓库根）；涉及生产实例的操作先看 `AGENTS.md`。
+
+---
+
+## 关于事实来源
+
+本目录每份规范都以主仓当前代码为事实来源；`guides/` 两份思考指南是独立主题，不属于上面的后端规范清单。

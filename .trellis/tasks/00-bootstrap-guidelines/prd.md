@@ -21,8 +21,10 @@ the rest conversationally.
 
 ## Status (update the checkboxes as you complete each item)
 
-- [ ] Fill backend guidelines
-- [ ] Add code examples
+- [x] Fill backend guidelines
+- [x] Add code examples
+
+> 2026-09-26 完成：六份文件（index + 5 主题）共 863 行，全部中文、无占位符；独立校验 353 条引用中 99.6% 有效，22 条实质断言 21 条与代码一致，11 处瑕疵已修订。方法与证据链见本轮会话；规范与 `AGENTS.md` 冲突处已回写 `AGENTS.md`（定向测试路径、存量失败原因、jsonl 结果口径、config.json 被跟踪提示）。
 
 ---
 
