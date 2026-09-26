@@ -58,13 +58,13 @@
 
 ## Acceptance Criteria
 
-- [ ] AC1 构造一个 `group_id=0` 且任务组可调度的任务，`reload_jobs` 后调度器中只有 `group_0` job，不存在 `task_0` job（回归测试可复现修复前的错误行为）。
-- [ ] AC2 构造 `group_id=None` 的任务，`reload_jobs` 后存在其单任务 job；构造任务组 `enabled=false` 的成员任务，`reload_jobs` 后其单任务 job 存在（R1 约束不被破坏）。
-- [ ] AC3 商品详情返回 `FAIL_SYS_USER_VALIDATE` 时，`_run_scrape_attempt` 抛出 `RiskControlError` 而非正常返回；同一轮内后续商品不再发起详情请求（不再连撞）。
-- [ ] AC4 风控原因经 `_notify_task_failure` 传入后，`FailureGuard` 的 `consecutive_failures` 为 1 且 `paused_until` 非空；随后 `should_skip_start` 返回 `skip=True`，即单次命中即暂停。
-- [ ] AC5 风控中止的尝试不触发 `record_success`：熔断状态中 `last_success_at` 不被刷新、`consecutive_failures` 不被清零。
-- [ ] AC6 `python -m pytest tests/ -s` 结果不差于基线（130 passed / 3 failed / 3 skipped），且新增用例全部通过。
-- [ ] AC7 `logs/task-failure-guard.json` 文件格式与既有 `FailureGuard` 读写兼容，`tests/test_failure_guard.py` 全部通过。
+- [x] AC1 构造一个 `group_id=0` 且任务组可调度的任务，`reload_jobs` 后调度器中只有 `group_0` job，不存在 `task_0` job（回归测试可复现修复前的错误行为）。→ `test_group_member_not_scheduled_individually_when_group_id_zero`（旧代码上实测失败：`{'group_0','task_1'}`）
+- [x] AC2 构造 `group_id=None` 的任务，`reload_jobs` 后存在其单任务 job；构造任务组 `enabled=false` 的成员任务，`reload_jobs` 后其单任务 job 存在（R1 约束不被破坏）。→ `test_task_without_group_keeps_individual_job` + 参数化 `test_disabled_group_members_fall_back_to_individual_jobs`
+- [x] AC3 商品详情返回 `FAIL_SYS_USER_VALIDATE` 时，`_run_scrape_attempt` 抛出 `RiskControlError` 而非正常返回；同一轮内后续商品不再发起详情请求（不再连撞）。→ 判定与抛出：`test_detail_risk_control_raises_after_long_sleep`；不连撞/传播：`test_detail_loop_reraises_risk_control_before_generic_exception`（结构契约）+ `scraper.py:1165-1169` 裸 `raise`。**保留**：端到端行为需上线首轮日志确认（单测不驱动 Playwright）
+- [x] AC4 风控原因经 `_notify_task_failure` 传入后，`FailureGuard` 的 `consecutive_failures` 为 1 且 `paused_until` 非空；随后 `should_skip_start` 返回 `skip=True`，即单次命中即暂停。→ 参数化 `test_risk_control_reason_pauses_immediately`（三个原因各一条，旧代码上全部失败）
+- [x] AC5 风控中止的尝试不触发 `record_success`：熔断状态中 `last_success_at` 不被刷新、`consecutive_failures` 不被清零。→ 同用例断言 `last_success_at` 未写入；代码上 `record_success`（`scraper.py:1313`）在异常路径不可达
+- [x] AC6 `python -m pytest tests/ -s` 结果不差于基线（130 passed / 3 failed / 3 skipped），且新增用例全部通过。→ 实测 145 passed / 3 failed / 3 skipped（151 collected；3 个存量失败同名同因，未新增）
+- [x] AC7 `logs/task-failure-guard.json` 文件格式与既有 `FailureGuard` 读写兼容，`tests/test_failure_guard.py` 全部通过。→ 3 passed；用生产 guard 文件只读验证旧格式兼容，文件 sha256 与 mtime 未变
 
 ## Out of Scope
 
@@ -80,7 +80,7 @@
 2. **风控用既有 `pause_immediately` 机制**（`src/scraper.py:122`）而不是新写一条 `record_failure` 调用：一处改动即可，保持与"确定性配置错误立即暂停"同一语义，避免双计数。
 3. **R2 采用重抛而非就地 break**：重抛才能让任务级 `except RiskControlError`（`src/scraper.py:1305`）拿到 `last_error`，从而触发 `_notify_task_failure` 与熔断；就地 break 会让任务继续被当作成功。
 4. **冷却与恢复**：建议账号冷却 ≥24 小时后、且修复提交完成，再由用户手动启用任务组与任务。任务保持禁用期间不会自行恢复。
-5. **不在本任务引入 `trellis-implement` / `trellis-check` 子代理**：本会话未注册这两个 agent 类型，实现与检查在主会话完成，产物与验收标准不变。
+5. ~~**不在本任务引入 `trellis-implement` / `trellis-check` 子代理**~~ **已过时（2026-09-26）**：`.zcode/agents/trellis-implement.md`、`trellis-check.md` 已随 Trellis 集成入库，本任务按主会话默认流程派发 `trellis-implement` 实现、`trellis-check` 验证；产物与验收标准不变。
 
 ## Decisions（2026-09-26 评审定稿）
 

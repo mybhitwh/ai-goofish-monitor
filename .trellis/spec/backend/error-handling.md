@@ -1,7 +1,7 @@
 # 错误处理指南
 
-> 本文件描述本仓库**实际**的错误处理做法，含 2026-09-25 生产事故的教训与尚未落地的技术债。
-> 读者：后续 AI 子代理与新同事。最后核对：2026-09-26（master `d3b58a5`）。
+> 本文件描述本仓库**实际**的错误处理做法，含 2026-09-25 生产事故的教训。
+> 读者：后续 AI 子代理与新同事。最后核对：2026-09-26（风控止损修复 R1–R5 已落地，任务 `.trellis/tasks/09-25-fix-risk-control-stop-loss/`）。
 > 日志格式与级别见 `logging-guidelines.md`；测试基线与提交规范见 `quality-guidelines.md`。
 
 ---
@@ -10,7 +10,7 @@
 
 | 类型 | 定义位置 | 语义 | 处理方式 |
 | --- | --- | --- | --- |
-| `RiskControlError(Exception)` | `src/scraper.py:66` | 闲鱼风控/验证命中：`baxia-dialog`（`:730`）、`J_MIDDLEWARE_FRAME_WIDGET`（`:753`）、`FAIL_SYS_USER_VALIDATE`（`:1035`） | 确定性失败：中止本轮采集并向上传播，不轮换重试 |
+| `RiskControlError(Exception)` | `src/scraper.py:66` | 闲鱼风控/验证命中：`baxia-dialog`（`:756`）、`J_MIDDLEWARE_FRAME_WIDGET`（`:779`）、`FAIL_SYS_USER_VALIDATE`（`:125`，`_check_detail_risk_control`） | 确定性失败：中止本轮采集并向上传播，不轮换重试；三条原因一次命中即熔断（§3.2） |
 | `LoginRequiredError(Exception)` | `src/scraper.py:70` | 跳转到 passport/mini_login，登录态失效 | 确定性失败：中止并交由熔断暂停，不重试 |
 | `PlaywrightTimeoutError` | `playwright.async_api.TimeoutError` 别名，`src/scraper.py:9-13` | 元素/响应等待超时 | 多数场景是「可继续」：筛选失败、广告弹窗未出现等只打日志继续 |
 | `EmptyAIResponseError(ValueError)` | `src/services/ai_response_parser.py:8` | AI 返回空内容/缺 message | 被 `ai_handler` 视为可重试，内部重试耗尽后抛出 |
@@ -27,9 +27,14 @@
 
 商品循环的宽泛 `except Exception` 只允许吸收「这一个商品」的局部失败（详情页超时、解析失败），**不得吞掉风控与登录失效**。识别到风控后应停止本轮剩余商品并**重抛**给任务级处理，而不是 `continue` 或就地 `break`。
 
-- 为什么必须重抛：任务级 `except RiskControlError`（`src/scraper.py:1305-1309`）是 `last_error` 的唯一来源；只有它被赋值，收尾的 `_notify_task_failure`（`:1316-1317`）才会被调用，从而触发 `FailureGuard` 熔断与通知。就地 `break` 会让本轮以「成功」收尾并执行 `record_success`（`:1299`），熔断器永远打不开。
-- 事故例证（2026-09-25，生产实例）：`FAIL_SYS_USER_VALIDATE` 在商品详情接口被拦，商品级 `except Exception`（`src/scraper.py:1154-1157`）把它当普通错误打印后继续下一个商品；三个任务分别连撞 32/34/33 次（合计约 99 次），`logs/task-failure-guard.json` 中 4 个任务 `consecutive_failures` 全为 0，任务日志收尾却是「正常结束，本次运行共处理了 0 个新商品」。完整证据见 `.trellis/tasks/09-25-fix-risk-control-stop-loss/research/risk-control-incident-evidence.md`。
-- **现状标注（技术债）**：截至本文核对日，修复任务 `09-25-fix-risk-control-stop-loss` 处于 planning，`src/scraper.py:1154-1157` 仍未加 `RiskControlError` 分支，风控三条原因也未加入 `pause_immediately`。编写新代码时按本节规则执行，不要复制现有兜底写法。
+- 为什么必须重抛：任务级 `except RiskControlError`（`src/scraper.py:1319-1323`）是 `last_error` 的唯一来源；只有它被赋值，收尾的 `_notify_task_failure`（`:1331`）才会被调用，从而触发 `FailureGuard` 熔断与通知。就地 `break` 会让本轮以「成功」收尾并执行 `record_success`（`:1313`），熔断器永远打不开。
+- 事故例证（2026-09-25，生产实例）：`FAIL_SYS_USER_VALIDATE` 在商品详情接口被拦，商品级 `except Exception`（`src/scraper.py:1170-1174`）把它当普通错误打印后继续下一个商品；三个任务分别连撞 32/34/33 次（合计约 99 次），`logs/task-failure-guard.json` 中 4 个任务 `consecutive_failures` 全为 0，任务日志收尾却是「正常结束，本次运行共处理了 0 个新商品」。完整证据见 `.trellis/tasks/09-25-fix-risk-control-stop-loss/research/risk-control-incident-evidence.md`。
+- **已落地实现（2026-09-26，任务 `09-25-fix-risk-control-stop-loss`）**：契约钉在四处，改动本链路必须同时满足——
+  1. 判定与抛出集中在模块级纯逻辑 `_check_detail_risk_control`（`src/scraper.py:105-125`）：`ret` 含 `FAIL_SYS_USER_VALIDATE` → 打印 `CRITICAL BLOCK` → `random.randint(3, 60)` 长休眠 → `raise RiskControlError("FAIL_SYS_USER_VALIDATE")`（由原内联块纯搬移，为的是可在无 Playwright 下单测）；
+  2. 商品详情循环的 `except RiskControlError`（`:1165-1169`）必须排在宽泛 `except Exception`（`:1170-1174`）**之前**，且 handler 为 `stop_scraping = True` + **裸 `raise`**；
+  3. `record_success` 只在尝试正常返回路径（`:1313`）；风控异常路径必须不可达；
+  4. 异常经任务级 `except RiskControlError`（`:1319-1323`）落到 `_notify_task_failure`（`:1331`）。
+  回归钉子：`tests/unit/test_scraper_risk_control.py`（行为用例 + 结构契约）与 `tests/unit/test_scheduler_service.py`（同任务的 R1：`group_id=0` 不得重复调度）。
 
 ### 规则 2.2 允许降级的只有非关键旁路
 
@@ -47,13 +52,13 @@
 
 ## 3. 任务级重试与熔断
 
-### 3.1 尝试级重试（`src/scraper.py:1210-1317`）
+### 3.1 尝试级重试（`src/scraper.py:1271-1332`）
 
 - `attempt_limit = max(account_retry_limit, proxy_retry_limit, 1)`；循环内：
-  - `LoginRequiredError` → 记 `last_error` 后 `break`（不轮换重试，`:1301-1304`）；
-  - `RiskControlError` → 记 `last_error` 后 `break`（风控不是轮换能解决的，`:1305-1309`）；
-  - 其余 `Exception` → 记 `last_error`，按配置轮换账号/IP 后重试（`:1310-1314`）。
-- 只有整轮成功才 `FAILURE_GUARD.record_success`（`:1299`）；`last_error` 非空则调 `_notify_task_failure`（`:1316-1317`）。
+  - `LoginRequiredError` → 记 `last_error` 后 `break`（不轮换重试，`:1315-1318`）；
+  - `RiskControlError` → 记 `last_error` 后 `break`（风控不是轮换能解决的，`:1319-1323`）；
+  - 其余 `Exception` → 记 `last_error`，按配置轮换账号/IP 后重试（`:1324-1329`）。
+- 只有整轮成功才 `FAILURE_GUARD.record_success`（`:1313`）；`last_error` 非空则调 `_notify_task_failure`（`:1331`）。
 
 ### 3.2 `FailureGuard` 熔断（`src/failure_guard.py`）
 
@@ -64,8 +69,9 @@
   - `should_skip_start` 在暂停期内返回 `skip=True`；若登录态文件 mtime 变新，则自动 `record_success` 恢复（`:247-261`）。
   - `record_success` 清零计数与暂停（`:204-218`）。
 - 两个拦截点：任务启动前 `ProcessService.start_task` 先查 `should_skip_start`（`src/services/process_service.py:140-146`）；爬虫进程内 `scrape_xianyu` 开头再查一次（`scraper.py:1230-1255`）。
-- **确定性失败立即暂停**的既有机制：`_notify_task_failure` 内 `pause_immediately` 标记元组（`scraper.py:121-128`），命中则 `min_failures_to_pause=1`。目前只有两条标记：「未找到可用的代理地址」「未找到可用的登录状态文件」。风控三条（`FAIL_SYS_USER_VALIDATE` / `baxia-dialog` / `J_MIDDLEWARE_FRAME_WIDGET`）按任务设计应加入该元组（待实施，见规则 2.1 现状标注）。
-- 已知偏差：`ProcessService._resolve_cookie_path` 在任务未配 `account_state_file` 时回退到仓库根不存在的 `STATE_FILE` 且 `except Exception: pass`（`process_service.py:54-63`），导致「更新登录态自动恢复」拿不到真实路径；修复方案见风控任务 R5。
+- **确定性失败立即暂停**的既有机制：`_notify_task_failure` 内 `pause_immediately` 标记元组（`scraper.py:145-154`），命中则 `min_failures_to_pause=1`（`:160`，一次计数即熔断，无第二次 `record_failure`）。**现含五条标记**：两条配置类（「未找到可用的代理地址」「未找到可用的登录状态文件」）+ 风控三条（`FAIL_SYS_USER_VALIDATE` / `baxia-dialog` / `J_MIDDLEWARE_FRAME_WIDGET`，2026-09-26 加入）。
+  > **Warning（隐式契约）**：标记是**异常文案的子串**——命中判定比对 `str(exc)`（`:145-148`），文案由三处 `raise RiskControlError(...)` 提供（`:125`、`:756`、`:779`）。改 raise 文案而不改标记，会让熔断静默失效；改任一侧都要同步另一侧并跑 `tests/unit/test_scraper_risk_control.py`（其中三个标记各有一条参数化用例断言「一次命中即暂停」）。
+- 登录态路径解析（2026-09-26 修复）：`ProcessService._resolve_cookie_path`（`process_service.py:54-69`）的判定顺序为 **任务 `account_state_file` → `FailureGuard.remembered_cookie_path(task_name)`（`failure_guard.py:359-371`，只读访问器，从历史失败记录取实际用过的路径）→ `STATE_FILE`（仅当文件真实存在）→ `None`**；解析不到一律返回 `None`，不得伪造路径。原 `except Exception: pass` 已改为打印一行日志（见 §7.7）。`should_skip_start` 的「更新登录态自动恢复」依赖这个值，返回 `None` 时该分支不可达。
 
 ## 4. API 层错误映射
 
@@ -91,7 +97,7 @@
   - `is_temperature_unsupported_error`（`:160-168`）。
 - 调用侧不抛出，而是基于判定调整后续请求参数：`ai_handler.py:445-468` 分别回退 API 模式、关闭 `response_format`、去掉 `temperature`，然后继续下一次尝试；4 次耗尽才 `raise`。
 - 取舍：文本识别会漏判新网关的措辞变体；约定是「新增网关问题必须同时补 marker 与单测」，现有用例在 `tests/unit/test_ai_request_compat.py`、`tests/unit/test_ai_response_parser.py`。
-- 不要把异常文本当业务控制流散落在业务代码里；需要分支时收进 `is_*_error` 纯函数并配单测。数据协议层的字符串判定除外，例如详情接口 `ret` 中含 `FAIL_SYS_USER_VALIDATE` 判定风控（`scraper.py:1019`、`item_recheck_service.py:181`），这是接口协议而非异常消息。
+- 不要把异常文本当业务控制流散落在业务代码里；需要分支时收进 `is_*_error` 纯函数并配单测。数据协议层的字符串判定除外，例如详情接口 `ret` 中含 `FAIL_SYS_USER_VALIDATE` 判定风控（现收敛为 `scraper.py:105-125` 的 `_check_detail_risk_control`；复核侧 `item_recheck_service.py:181`），这是接口协议而非异常消息。
 
 ## 6. 落库的失败语义
 
@@ -114,7 +120,7 @@
 4. **把异常文本当控制流**：散落的字符串比较没有单测防护；收敛到 `is_*_error` 纯函数（见 §5）。
 5. **忽略 `retry_on_failure` 的 `None` 返回**：重试耗尽不抛异常只返回 `None`，调用方不判会静默丢失（图片下载、通知路径）。
 6. **通知/辅助动作反噬主流程**：通知、证据日志、清理动作失败都必须吞掉并打日志。
-7. **静默吞掉基础设施异常**：`_resolve_cookie_path` 的 `except Exception: pass`（`process_service.py:60-61`）让「自动恢复」静默失效，属于要修的技术债；同类新代码至少留一行日志。
+7. **静默吞掉基础设施异常**：`_resolve_cookie_path` 曾用 `except Exception: pass` 让「自动恢复」静默失效（2026-09-26 已改为打印一行日志，`process_service.py:60-63`）。同类新代码一律至少留一行日志；静默 `pass` 只允许出现在证据写入与损坏文件隔离（判定口径见 `quality-guidelines.md` §8）。
 
 ## 8. 验证与排查命令
 
@@ -126,12 +132,13 @@ grep -rn "except Exception" src/ --include=*.py | grep -v __pycache__
 grep -rn "RiskControlError\|LoginRequiredError" src/ --include=*.py
 
 # 定向测试
-.venv/bin/python -m pytest tests/test_failure_guard.py tests/unit/test_item_analysis_dispatcher.py \
-  tests/unit/test_ai_request_compat.py tests/unit/test_ai_handler_analysis.py tests/unit/test_process_service.py -s
+.venv/bin/python -m pytest tests/unit/test_scraper_risk_control.py tests/unit/test_scheduler_service.py \
+  tests/test_failure_guard.py tests/unit/test_process_service.py \
+  tests/unit/test_ai_request_compat.py tests/unit/test_ai_handler_analysis.py -s
 
 # 熔断状态（生产）
 cat logs/task-failure-guard.json
 ```
 
 - 事故原始证据与复现命令：`.trellis/tasks/09-25-fix-risk-control-stop-loss/research/risk-control-incident-evidence.md`；需求与验收标准：`.trellis/tasks/09-25-fix-risk-control-stop-loss/prd.md`。
-- 修复落地时同步更新本文件 §2.1 的「现状标注」，避免规则与代码再次脱节。
+- §2.1「已落地实现」四点是本链路的契约，改动时必须同步维护；引用行号以 grep 实测为准（本文件最后核对 2026-09-26）。任务完成后不要保留「待实施」措辞——规则与代码脱节一个提交都可能误导下一位读者。

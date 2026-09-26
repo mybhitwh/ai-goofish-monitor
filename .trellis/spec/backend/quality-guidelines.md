@@ -50,6 +50,7 @@
 - 子进程/文件副作用隔离：`tests/unit/test_process_service.py:57-60` 把 `build_task_log_path` monkeypatch 到 `tmp_path`，避免真建 `logs/`。
 - `tests/test_frontend_build_paths.py` 是**有意例外**：它只读仓库文件做配置一致性断言（`:10-14`），不产生写入，不算破例。
 - 新测试如果需要"看起来真实"的路径，用 `tmp_path` 拼相对结构，不要断言仓库根的真实文件存在。
+- **`importlib.reload` 会让类身份失效**：`tests/unit/test_scraper_browser_channel.py` 会 reload `src.scraper`；此后其它测试文件在**模块顶层** `from src.scraper import RiskControlError` 拿到的旧类，与 reload 后模块内抛出的新类不再是同一个对象，`pytest.raises`/`except` 会失配（单跑通过、全量跑失败）。新测试一律运行时取类：`importlib.import_module("src.scraper").RiskControlError`（例证：`tests/unit/test_scraper_risk_control.py` 的文件 docstring 与取类写法）。
 
 ---
 
