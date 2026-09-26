@@ -50,7 +50,7 @@ const groupMap = computed(() => {
 })
 
 const resolveGroup = (task: Task): TaskGroup | null => {
-  if (!task.group_id) return null
+  if (task.group_id == null) return null
   return groupMap.value.get(task.group_id) || null
 }
 

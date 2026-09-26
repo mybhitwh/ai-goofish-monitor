@@ -65,7 +65,7 @@ export function useTasks() {
   })
 
   function groupName(task: Task | null | undefined): string | null {
-    if (!task?.group_id) return null
+    if (task?.group_id == null) return null
     return groupById.value.get(task.group_id)?.name || null
   }
 
