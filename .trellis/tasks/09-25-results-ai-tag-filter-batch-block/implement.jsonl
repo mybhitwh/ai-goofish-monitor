@@ -1,0 +1,7 @@
+{"file": "AGENTS.md", "reason": "仓库真实约定：分层架构、测试目录规范、pnpm 构建、prompts CRLF 与已跟踪文件纪律、生产实例禁止提交运行时状态"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端指南入口（当前仍是待填脚手架，以 AGENTS.md 与既有代码为准）"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "读写路径与数据层约定：本任务决定不新增列/不做迁移，需按此核对"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "新增的 400 护栏（无收窄条件、互斥筛选、非法 status）与未知文件的宽松语义需符合"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "字段契约跨 4 层：raw_json → _ai_tags 装饰 → API 参数/响应 → 前端类型与展示"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "必须复用既有过滤/装饰/注解路径，不得复制一套并行的记录装载或标签逻辑"}
+{"file": ".trellis/tasks/09-25-results-ai-tag-filter-batch-block/research/ai-tags-and-results-filter-map.md", "reason": "代码地图与线上只读证据：全部 file:line 锚点、标签分布、读路径为何适合派生"}

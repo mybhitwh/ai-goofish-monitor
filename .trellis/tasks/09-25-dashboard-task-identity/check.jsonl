@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "质量检查项"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查跨层一致性：API → services → domain → infrastructure 不得越层"}
+{"file": ".trellis/tasks/09-25-dashboard-task-identity/research/repro-scenarios.md", "reason": "复核验收：逐条对照场景 A/B/B2/C/D/E 的预期行为"}
+{"file": ".trellis/tasks/09-25-dashboard-task-identity/research/root-cause-and-live-evidence.md", "reason": "线上事实基线：阻断测试必须隔离 APP_DATABASE_FILE，且运行时不得改动真实库"}

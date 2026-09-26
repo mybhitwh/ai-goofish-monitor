@@ -1,0 +1,8 @@
+{"file": "AGENTS.md", "reason": "仓库真实约定：Python 用 .venv、前端 pnpm、测试基线 136/130/3/3、生产实例运维纪律（data/ 禁改禁提交、sudo 需用户代跑、健康检查三件套）"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端指南入口（当前为待填充模板；本次新增服务与迁移需遵守其中引用的分层约定）"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite 迁移与索引约定：新增 item_hidden_marks 表、幂等迁移 marker、分块 IN 查询的放置位置"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "错误处理约定：PATCH 状态接口的 400/404 语义必须保持不变"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "分层边界：SQL 留在服务/基础设施层，路由只做参数与错误映射；确认状态语义变更没有跨层泄漏"}
+{"file": ".trellis/tasks/09-25-fix-blocked-item-reappear-merged-view/prd.md", "reason": "需求 R1-R6、验收 AC1-AC7 与四类 Non-Goals：实现范围与不做清单"}
+{"file": ".trellis/tasks/09-25-fix-blocked-item-reappear-merged-view/design.md", "reason": "方案 A 的契约、不变量、_status 遮蔽语义、存量收敛三步与回滚要求，实现按其执行"}
+{"file": ".trellis/tasks/09-25-fix-blocked-item-reappear-merged-view/implement.md", "reason": "阶段 0-5 的执行清单、每阶段门禁与回滚点"}

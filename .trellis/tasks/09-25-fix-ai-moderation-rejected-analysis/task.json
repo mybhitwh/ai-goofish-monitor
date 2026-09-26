@@ -1,0 +1,30 @@
+{
+  "id": "fix-ai-moderation-rejected-analysis",
+  "name": "fix-ai-moderation-rejected-analysis",
+  "title": "修复 AI 分析被平台审核拒绝：入参瘦身、降级重试与失败态区分",
+  "description": "百炼输入审核对「多张全分辨率图」的重型请求返回 data_inspection_failed；当前实现用逐字节相同的 payload 重试 4 次后把该故障落成 is_recommended=false，前端显示为「不建议购买 0%」，与真实判定无法区分。本任务做三件事：发送前缩放/转码图片入参、按阶梯降级重试、把分析失败与真实判定区分开（含落库字段与前端展示）。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "myb",
+  "assignee": "myb",
+  "createdAt": "2026-09-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "incident": "2026-09-25 data_inspection_failed（result_items.id=274 / request_id=5c0fc299）",
+    "evidence": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/research/dashscope-moderation-evidence.md",
+    "related_task": "09-25-fix-risk-control-stop-loss"
+  }
+}

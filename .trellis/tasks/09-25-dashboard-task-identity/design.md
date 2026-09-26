@@ -1,6 +1,6 @@
 # 技术设计：任务身份与结果文件归属
 
-> 状态：D1 未决，本文件按推荐方案（D1-1）成稿；D1 决策后「生命周期」一节收敛为单分支。
+> 状态：D1 已定 —— **迁移**（2026-09-25 用户选定）。§5 的采纳方案为迁移，未采纳方案留档于 §5.2 / §5.3。
 
 ## 1. 设计目标与不变量
 
@@ -9,7 +9,7 @@
 - **I1** `task_summaries` 与任务一一对应（`len(task_summaries) == len(tasks)`），每条 `task_id` 非空。
 - **I2** 一个结果文件最多归属一个任务；无法归属的文件只出现在 `orphan_files`，不参与任务计数与任务口径的累计。
 - **I3** `summary.total_tasks` 由后端给出，等于任务数；前端不再从数组长度推导。
-- **I4** 任务被删除后，其全部数据流随之消失（不留无主残留——除非用户选择了 D1-3 的最小策略，见 §5）。
+- **I4** 任务被删除后，其全部数据流随之消失，不留无主残留。
 
 ## 2. 身份与归属模型
 
@@ -87,11 +87,11 @@ summary   = { total_tasks=len(tasks), result_files=已认领数, orphan_files=le
 - 活动生成：`build_task_state_activities(tasks)` 保持不变；扫描 / 推荐活动沿用 `summarize_result_file` 的输出，但对无主文件单独取用（`_build_fallback_summary` 不再写入摘要列表，改写入 orphan 项）。
 - 性能注记：`load_result_summary` 会把该文件全部可见记录读进内存（`src/services/result_storage_service.py:395-431`）。现有实现已经对每个文件都这样做，本设计不加重；无主文件若数量增长，可改用一条 SQL 聚合（`COUNT` / `MAX(crawl_time)` / 推荐计数）替代全量读取——列为可选优化，不作为验收项。
 
-## 5. D1 决策分支：改 keyword 时既有数据怎么办
+## 5. 生命周期：改 keyword 时既有数据怎么办（D1 = 迁移）
 
-三个方案共享 §2–§4 的全部工作，只在「改 keyword / 删除任务」这两处分叉。
+采纳方案见 §5.1；未采纳的两个方案留档于 §5.2 / §5.3，供日后重新评估。三者共享 §2–§4 的全部工作，只在「改 keyword / 删除任务」这两处分叉。
 
-### D1-1 迁移（推荐）
+### 5.1 采纳：迁移
 
 - 新增 `migrate_result_stream(old_keyword, new_keyword) -> int`（`src/services/result_storage_service.py`）：
   单事务内 `UPDATE result_items SET result_filename = build_result_filename(new) WHERE result_filename = build_result_filename(old)`；价格快照同步 `UPDATE price_snapshots SET keyword_slug/keyword = 新值 WHERE keyword_slug = 旧 slug`。记录里的「搜索关键字 / 任务名称」保持历史原值不改写（归属已由文件名决定，payload 是历史事实）。
@@ -101,7 +101,9 @@ summary   = { total_tasks=len(tasks), result_files=已认领数, orphan_files=le
 - 代价：改写历史数据，不可自动回滚（迁移前自动备份数据库，复用本任务已用过的 sqlite backup API 做法）；一次操作两张表。
 - 收益：保持「一个任务一份数据流」这个代码库其它部分（写入、删除、价格历史、引导导入）已经假设的不变量，不引入第二套归属概念。
 
-### D1-2 保留归属链（不迁移）
+### 5.2 未采纳：保留归属链（不迁移）
+
+未采纳原因：需要 schema 变更并引入第二套归属概念，还要额外规定「旧 keyword 后来被别的任务复用」时归属如何断开；在「一个任务一份数据流」已是代码库既有假设的前提下，其复杂度收益比不如迁移。
 
 - 任务新增历史 keyword 记录（`tasks.result_keywords_json` 字段或 `task_result_streams` 表，二选一；倾向新表，避免再往 `tasks` 堆 JSON 列）。
 - 概览按任务聚合多个文件：`filename` 取最新那个用于 focus 与跳转，`total_items` 等指标跨文件累加。
@@ -109,17 +111,18 @@ summary   = { total_tasks=len(tasks), result_files=已认领数, orphan_files=le
 - 需要补充规则：旧 keyword 后来被别的任务复用时，归属链必须断开（否则一个文件两个主人）。
 - 代价：schema 变更 + 聚合与删除都变复杂 + 新增歧义规则；收益：零数据改写，可随时回退代码。
 
-### D1-3 最小修复
+### 5.3 未采纳：最小修复
+
+未采纳原因：与 I4 冲突（删除任务后仍可能留下无主数据），且任务换 keyword 后历史趋势断档，用户会误以为数据丢失。
 
 - 不改写、不追溯：改 keyword 后旧文件直接进入 `orphan_files`，任务从新 keyword 重新开始；删除任务只清当前 keyword。
 - 代价：任务历史趋势断档（概览卡片换 keyword 后归零），用户需手动清理无主文件；收益：改动最少、风险最低。
 - 与 I4 的冲突：此时删除任务仍可能留下无主数据，属于**已知且接受**的行为，需在 PRD 的 Out of Scope 里写明。
 
-## 6. D2 重复 keyword
+## 6. 重复 keyword：拒绝（D2 由 D1 派生）
 
-- D1-1 下必须拒绝：两个任务用同一 keyword 会共用同一结果文件，迁移也会撞车。校验点：`POST /api/tasks/`（`create_task`）、`POST /api/tasks/generate`（生成路径最终也落到 `build_task_create` → `create_task`）、`PATCH /api/tasks/{id}`（keyword 变化时）。错误信息需可读（如「关键词 `iPad Air M4` 已被任务「…」使用，请改用不同的关键词或先修改该任务」），HTTP 400。
+- 必须拒绝：两个任务用同一 keyword 会共用同一结果文件，迁移也会撞车。校验点：`POST /api/tasks/`（`create_task`）、`POST /api/tasks/generate`（生成路径最终也落到 `build_task_create` → `create_task`）、`PATCH /api/tasks/{id}`（keyword 变化时）。错误信息需可读（如「关键词 `iPad Air M4` 已被任务「…」使用，请改用不同的关键词或先修改该任务」），HTTP 400。
 - 存量数据：提供只读体检输出（重复 keyword 清单），不自动改数据；由用户决定处置。
-- 若用户坚持允许共享：聚合层按「文件」去重计数（同一文件只累加一次），并在条目上加 `shared_by` 标注；此为 D1-2/3 才可行的降级路径。
 
 ## 7. 前端改动
 
@@ -130,7 +133,7 @@ summary   = { total_tasks=len(tasks), result_files=已认领数, orphan_files=le
 
 ## 8. 兼容性、迁移与体检
 
-- 契约向后兼容（§3）；无 schema 变更（D1-1/D1-3）；D1-2 需要迁移存量任务的 keyword 列表。
+- 契约向后兼容（§3）；无 schema 变更 —— 采纳的迁移方案只改数据归属，不动表结构。
 - 升级后首次打开概览即可自愈：以前计入任务的幽灵条目变为 `orphan_files`，计数立刻与任务管理一致——线上 feed_scan 那类数据无需再手工清理计数。
 - 存量体检（只读，建议做成一次性脚本或 API）：重复 keyword 清单、无主文件清单及其条数。不自动修改。
 

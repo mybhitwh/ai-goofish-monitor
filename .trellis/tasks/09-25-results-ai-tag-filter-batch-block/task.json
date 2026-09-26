@@ -1,0 +1,29 @@
+{
+  "id": "results-ai-tag-filter-batch-block",
+  "name": "results-ai-tag-filter-batch-block",
+  "title": "结果页 AI 标签筛选与批量屏蔽",
+  "description": "结果页缺少「按 AI 判定原因筛选 + 批量屏蔽」：AI 已在 risk_tags 输出型号不符/容量不符/卖家信用不足等标签（线上 273/274 条非空），但只存在 raw_json 里，没有可筛选字段、没有展示；屏蔽只能逐条点，理由也落不回细粒度标签（线上 157 条已屏蔽中有 84 条统一打了「不符合我的要求」）。本任务把 risk_tags 规范化为稳定词表并在读路径派生 _ai_tags、新增 ai_tags 筛选与 facets、新增按筛选条件批量屏蔽/恢复并把理由写入用户标签。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "myb",
+  "assignee": "myb",
+  "createdAt": "2026-09-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "evidence": ".trellis/tasks/09-25-results-ai-tag-filter-batch-block/research/ai-tags-and-results-filter-map.md",
+    "related_tasks": "09-25-block-reason-free-tag-popover, 09-25-fix-blocked-item-reappear-merged-view, 09-25-fix-ai-moderation-rejected-analysis"
+  }
+}

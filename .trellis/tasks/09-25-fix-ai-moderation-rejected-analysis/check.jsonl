@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/research/dashscope-moderation-evidence.md", "reason": "按实验证据核对：是否真的缩小了触发面、失败是否如实上报而不是伪装成判定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "测试要求与代码审查清单，新增用例需覆盖降级阶梯与失败态字段"}
+{"file": ".trellis/spec/backend/index.md", "reason": "后端分层入口：确认改动未跨层耦合（ai 客户端 / 服务层 / 前端字段契约）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "核对两类新错误的异常语义：阶梯耗尽后仍向上抛出，不被吞掉"}
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/design.md", "reason": "按 §2/§3/§4/§5/§6 逐项核对：参数默认值、阶梯级别与入参递减、failed/ok_text_only 读侧口径、重跑写回与护栏、设置项键名与校验"}
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/prd.md", "reason": "按 Decisions（2026-09-26）与 AC1-AC8 逐条取证，尤其 AC7 的生产库记录处理口径与 AC8 的前端构建"}

@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-25-prefilter-before-ai/research/title-prefilter-evidence.md", "reason": "核对 AC5（274 条离线零误杀）与 AC3（否定前缀用例取自真实标题）时的基线数据"}
+{"file": ".trellis/tasks/09-25-prefilter-before-ai/design.md", "reason": "检查项来自 design.md 的契约：upsert 只对 prefilter 行晋升、去重过滤、审计记录默认隐藏、复用指纹与护栏"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "跨层一致性检查：title_exclude_keywords 在 DB 列 / DTO / API / 前端类型四处同名同义，analysis_source 新取值不得让既有筛选静默失效"}

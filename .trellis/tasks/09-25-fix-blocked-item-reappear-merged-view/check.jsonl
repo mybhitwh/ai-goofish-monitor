@@ -1,0 +1,5 @@
+{"file": "AGENTS.md", "reason": "核对：无新增测试失败、未触碰 data/ 与 .env 等运行态文件、commit 风格与提交拆分符合约定"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "核对迁移幂等性、marker 使用、新表索引与查询写法是否符合数据层约定"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "核对是否复用既有 link_unique_key 键解析（get_link_unique_keys_by_item_id）与分块 IN 模式，而非重复实现"}
+{"file": ".trellis/tasks/09-25-fix-blocked-item-reappear-merged-view/prd.md", "reason": "按 AC1-AC7 逐条取证：跨文件屏蔽、取消屏蔽、存量收敛、新文件不复现、语义不退化、测试与构建、生产核验留痕"}
+{"file": ".trellis/tasks/09-25-fix-blocked-item-reappear-merged-view/design.md", "reason": "按 §3.5 决策点与 §5 剩余风险逐条核对：_status 必须报 hidden、expired 保持文件级、取消屏蔽的边界、hash 兜底键边界"}

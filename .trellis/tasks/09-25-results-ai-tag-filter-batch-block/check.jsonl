@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "质量检查项"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "复核跨层一致性：同一字段在 API/服务/前端三处的名称与语义必须一致"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复核没有重复实现过滤逻辑（列表/facets/批量必须共用同一判定）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "复核护栏分支：无收窄条件 400、expired 不可达、dry_run 零写入"}
+{"file": ".trellis/tasks/09-25-results-ai-tag-filter-batch-block/research/ai-tags-and-results-filter-map.md", "reason": "复核线上证据基线：facets 计数可复算，测试与脚本不得写 data/app.sqlite3"}

@@ -1,0 +1,4 @@
+{"file": "AGENTS.md", "reason": "u12 前端约定：pnpm 构建、dist 与源码必须同步、测试基线与 UI 变更截图要求"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用 reka-ui 既装原语与 ui/ 组件风格；理由候选复用 usedTags，不另造数据源，不手写定位逻辑"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "确认理由仍写 _user_tags、block 事件链不变，无后端/接口改动"}
+{"file": ".trellis/tasks/09-25-block-reason-free-tag-popover/design.md", "reason": "组件契约、浮层边界策略、就地更新与软刷新机制（R4/R5：applyLocalVisibility / scheduleReconcile / mutationSeq / fetchResults({soft})）与 i18n 变更清单，实现按其执行"}

@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/09-25-prefilter-before-ai/research/title-prefilter-evidence.md", "reason": "规则集的唯一来源：274 条真实标题的命中分布、零误杀核对结论、以及否定前缀/粘连写法的实测陷阱，实现匹配器与拟定默认规则集前必须读完"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "本任务的字段归一化、仓储读写、可见性开关、输入框交互都要求复用 keyword_rules 的既有实现，不要另造并行结构"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "改动横跨 scraper → 服务 → 持久化（迁移/upsert/去重）→ 前端，动手前先确认字段名与语义在每层的契约一致"}

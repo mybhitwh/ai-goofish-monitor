@@ -1,0 +1,29 @@
+{
+  "id": "prefilter-before-ai",
+  "name": "prefilter-before-ai",
+  "title": "AI 前置标题预筛与跨任务复用：淘汰型号/容量不符商品，省 token 与详情抓取",
+  "description": "闲鱼搜索是模糊匹配（关键词 iPad Air 8 / iPad Air M4 / iPad Air 都会返回 Air 7、Air 6、M3 机型、128G/512G、13 寸、甚至 iPhone Air），而当前管线在列表解析后、AI 分析前没有任何本地确定性校验：每个新链接都要开一次详情页再发一次全量图片的多模态 AI 请求，不符合条件的商品也照付。2026-09-25 生产数据：最近一轮 4 个任务共分析 274 条，其中 137 条（50%）仅凭标题即可判定不符合「iPad Air 8 / 11 寸 / 256G」硬性标准，AI 仍逐个分析；另 106 条（39%）是同一商品被多个任务重复分析（去重仅按结果文件生效）。本任务做两件事：把「仅凭标题即可判定的一票否决规则」前移为确定性预筛（在开详情页之前短路，省 token 也省抓取与风控暴露），以及按 (商品唯一键 + 提示词指纹) 跨任务复用已完成的判定。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "myb",
+  "assignee": "myb",
+  "createdAt": "2026-09-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "evidence": ".trellis/tasks/09-25-prefilter-before-ai/research/title-prefilter-evidence.md",
+    "related_task": "09-25-fix-ai-moderation-rejected-analysis"
+  }
+}

@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/research/dashscope-moderation-evidence.md", "reason": "实测证据：审核拒绝与图片张数/分辨率相关且判定不稳定，决定「入参瘦身+降级重试+如实上报」的方向"}
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/research/product-1086957165721-snapshot.json", "reason": "被拒那次的商品输入快照与同目录复现脚本，是 AC1/AC2 的前后对比基线"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "新增「审核拒绝」「体积超限」两类错误的识别与传播必须与既有错误处理约定一致"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "降级轨迹（级别/原因/图片张数/payload 体积）的日志口径"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "错误识别复用 ai_request_compat 既有 is_*_unsupported_error 风格与既有重试循环，不新写并行实现"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "改动跨 ai_handler/ai_client → dispatcher 落库 → 前端渲染，动手前确认层边界与字段契约"}
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/design.md", "reason": "入参瘦身/阶梯状态机/失败态字段/重跑与设置页的契约与默认值（含 is_recommended NOT NULL 与 INSERT OR IGNORE 两个硬约束），实现按其执行"}
+{"file": ".trellis/tasks/09-25-fix-ai-moderation-rejected-analysis/implement.md", "reason": "Step 0-7 的执行清单、验证命令、门禁与回滚点"}

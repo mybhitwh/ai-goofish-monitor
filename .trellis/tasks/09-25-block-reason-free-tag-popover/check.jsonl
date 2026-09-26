@@ -1,0 +1,3 @@
+{"file": "AGENTS.md", "reason": "核对构建通过、后端测试基线未劣化、改动未触碰运行时状态文件"}
+{"file": ".trellis/spec/guides/index.md", "reason": "交叉评审误报模式与「改值前先搜」清单：i18n 旧键残留与重复实现检查"}
+{"file": ".trellis/tasks/09-25-block-reason-free-tag-popover/design.md", "reason": "按设计的风险表逐条核对（裁切、触发按钮可见性、窄视口、portal 残留、就地更新与服务端一致性与软刷新竞态），并按验证策略核对 AC8/AC9 的网络面板与骨架屏行为"}
