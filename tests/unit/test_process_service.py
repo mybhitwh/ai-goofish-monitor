@@ -109,3 +109,47 @@ def test_process_service_adds_debug_limit_arg_when_env_enabled(monkeypatch):
         "--debug-limit",
         "1",
     ]
+
+
+def _isolate_cookie_resolution(monkeypatch, tmp_path, task=None):
+    """隔离 guard 文件、任务查询与仓库根 STATE_FILE"""
+    monkeypatch.setenv("TASK_FAILURE_GUARD_PATH", str(tmp_path / "guard.json"))
+    monkeypatch.setattr(
+        "src.services.process_service.find_task_by_name_sync",
+        lambda _task_name: task,
+    )
+    monkeypatch.setattr(
+        "src.services.process_service.STATE_FILE",
+        str(tmp_path / "missing_root_state.json"),
+    )
+
+
+def test_resolve_cookie_path_prefers_task_account_state_file(tmp_path, monkeypatch):
+    """任务显式配置 account_state_file 时优先使用（既有行为不变）"""
+    task = SimpleNamespace(account_state_file="state/acc2.json")
+    _isolate_cookie_resolution(monkeypatch, tmp_path, task)
+
+    service = ProcessService()
+
+    assert service._resolve_cookie_path("task-a") == "state/acc2.json"
+
+
+def test_resolve_cookie_path_uses_guard_remembered_path(tmp_path, monkeypatch):
+    """任务未配置登录态时回退到熔断器记录的真实路径（R5：state/acc1.json）"""
+    _isolate_cookie_resolution(monkeypatch, tmp_path)
+
+    service = ProcessService()
+    service.failure_guard.record_failure(
+        "task-a", "FAIL_SYS_USER_VALIDATE", cookie_path="state/acc1.json"
+    )
+
+    assert service._resolve_cookie_path("task-a") == "state/acc1.json"
+
+
+def test_resolve_cookie_path_returns_none_when_unresolvable(tmp_path, monkeypatch):
+    """解析不到时返回 None，不伪造路径"""
+    _isolate_cookie_resolution(monkeypatch, tmp_path)
+
+    service = ProcessService()
+
+    assert service._resolve_cookie_path("task-a") is None

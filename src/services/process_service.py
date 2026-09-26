@@ -57,8 +57,14 @@ class ProcessService:
             task = find_task_by_name_sync(task_name)
             if task and isinstance(task.account_state_file, str) and task.account_state_file.strip():
                 return task.account_state_file.strip()
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"解析任务 '{task_name}' 的登录态配置失败，改用熔断器记录: {exc}")
+
+        # 任务未配置登录态文件时，用熔断器上次失败时实际使用过的路径
+        # （如 state/acc1.json）；否则「更新登录态后自动恢复」永远拿不到真实文件。
+        remembered = self.failure_guard.remembered_cookie_path(task_name)
+        if remembered:
+            return remembered
 
         return STATE_FILE if os.path.exists(STATE_FILE) else None
 

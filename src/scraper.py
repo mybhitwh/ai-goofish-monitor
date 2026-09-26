@@ -102,6 +102,29 @@ def _should_analyze_images(task_config: dict) -> bool:
     return str(raw_value).strip().lower() not in {"false", "0", "no", "off"}
 
 
+async def _check_detail_risk_control(detail_json) -> None:
+    """详情接口命中风控时：长休眠后抛出风控信号，由上层终止本轮采集。
+
+    风控是确定性失败。这里只负责识别与抛出，调用方必须让异常向上传播到任务级
+    处理（触发 FailureGuard 熔断），不得在商品循环里就地吞掉或 break。
+    """
+    ret_string = str(await safe_get(detail_json, "ret", default=[]))
+    if "FAIL_SYS_USER_VALIDATE" not in ret_string:
+        return
+
+    print("\n==================== CRITICAL BLOCK DETECTED ====================")
+    print("检测到闲鱼反爬虫验证 (FAIL_SYS_USER_VALIDATE)，本轮采集将立即终止。")
+    long_sleep_duration = random.randint(3, 60)
+    print(
+        f"为避免账户风险，先执行一次长时间休眠 ({long_sleep_duration} 秒)，"
+        "随后抛出风控信号..."
+    )
+    await asyncio.sleep(long_sleep_duration)
+    print("长时间休眠结束，正在抛出风控信号，由上层终止本轮采集并暂停任务。")
+    print("===================================================================")
+    raise RiskControlError("FAIL_SYS_USER_VALIDATE")
+
+
 def _format_failure_reason(reason: str, limit: int = 500) -> str:
     if not reason:
         return "未知错误"
@@ -118,12 +141,15 @@ async def _notify_task_failure(
     keyword = task_config.get("keyword", "")
     formatted_reason = _format_failure_reason(reason)
 
-    # Some failures are deterministic misconfiguration and should pause/notify immediately.
+    # Some failures are deterministic misconfiguration/risk control and should pause/notify immediately.
     pause_immediately = any(
         marker in formatted_reason
         for marker in (
             "未找到可用的代理地址",
             "未找到可用的登录状态文件",
+            "FAIL_SYS_USER_VALIDATE",
+            "baxia-dialog",
+            "J_MIDDLEWARE_FRAME_WIDGET",
         )
     )
 
@@ -1013,26 +1039,9 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
                             if detail_response.ok:
                                 detail_json = await detail_response.json()
 
-                                ret_string = str(
-                                    await safe_get(detail_json, "ret", default=[])
-                                )
-                                if "FAIL_SYS_USER_VALIDATE" in ret_string:
-                                    print(
-                                        "\n==================== CRITICAL BLOCK DETECTED ===================="
-                                    )
-                                    print(
-                                        "检测到闲鱼反爬虫验证 (FAIL_SYS_USER_VALIDATE)，程序将终止。"
-                                    )
-                                    long_sleep_duration = random.randint(3, 60)
-                                    print(
-                                        f"为避免账户风险，将执行一次长时间休眠 ({long_sleep_duration} 秒) 后再退出..."
-                                    )
-                                    await asyncio.sleep(long_sleep_duration)
-                                    print("长时间休眠结束，现在将安全退出。")
-                                    print(
-                                        "==================================================================="
-                                    )
-                                    raise RiskControlError("FAIL_SYS_USER_VALIDATE")
+                                # 风控命中会抛 RiskControlError，由下方商品循环的
+                                # except RiskControlError 重抛给任务级处理
+                                await _check_detail_risk_control(detail_json)
 
                                 # 解析商品详情数据并更新 item_data
                                 item_do = await safe_get(
@@ -1153,6 +1162,11 @@ async def scrape_xianyu(task_config: dict, debug_limit: int = 0):
 
                         except PlaywrightTimeoutError:
                             print(f"   错误: 访问商品详情页或等待API响应超时。")
+                        except RiskControlError:
+                            # 风控是确定性失败：停止本轮采集并重抛给任务级处理（熔断/通知）。
+                            # 不能就地 break——那会让本轮以成功收尾并清零失败计数。
+                            stop_scraping = True
+                            raise
                         except Exception as e:
                             print(f"   错误: 处理商品详情时发生未知错误: {e}")
                         finally:

@@ -89,7 +89,8 @@ class SchedulerService:
         for task in tasks:
             if not (task.enabled and task.cron):
                 continue
-            group = group_map.get(task.group_id) if task.group_id else None
+            # 任务组 id 可以是 0（合法值），只能用 None 表示“不属于任何任务组”
+            group = group_map.get(task.group_id) if task.group_id is not None else None
             if group is not None and group.can_schedule():
                 # 任务已加入开启调度的任务组，由任务组统一触发，跳过单独调度
                 continue

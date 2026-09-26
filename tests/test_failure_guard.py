@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 from src.failure_guard import FailureGuard
@@ -74,3 +75,24 @@ def test_failure_guard_auto_recovers_on_cookie_change(tmp_path):
         now=base + timedelta(minutes=1),
     )
     assert recovered.skip is False
+
+
+def test_failure_guard_remembers_cookie_path_from_last_failure(tmp_path):
+    """只读访问器：返回上次失败实际使用的登录态路径，未知或空白时返回 None"""
+    guard_path = tmp_path / "guard.json"
+    cookie_path = tmp_path / "state" / "acc1.json"
+    cookie_path.parent.mkdir(parents=True, exist_ok=True)
+    cookie_path.write_text("{}", encoding="utf-8")
+    guard = FailureGuard(path=str(guard_path))
+
+    assert guard.remembered_cookie_path("task-a") is None
+
+    guard.record_failure("task-a", "err-1", cookie_path=str(cookie_path))
+
+    assert guard.remembered_cookie_path("task-a") == str(cookie_path)
+
+    guard_path.write_text(
+        json.dumps({"version": 1, "tasks": {"task-b": {"cookie_path": "   "}}}),
+        encoding="utf-8",
+    )
+    assert guard.remembered_cookie_path("task-b") is None

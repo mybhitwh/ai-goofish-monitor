@@ -355,3 +355,17 @@ class FailureGuard:
 
         self._update_task(task_key, _apply)
         return result
+
+    def remembered_cookie_path(self, task_key: str) -> Optional[str]:
+        """只读访问器：返回该任务上次失败时实际使用的登录态路径（没有则为 None）。
+
+        供「更新登录态后自动恢复」在任务未显式配置 account_state_file 时解析真实路径，
+        不修改任何状态。
+        """
+        entry = (self._load().get("tasks") or {}).get(task_key)
+        if not isinstance(entry, dict):
+            return None
+        cookie_path = entry.get("cookie_path")
+        if isinstance(cookie_path, str) and cookie_path.strip():
+            return cookie_path.strip()
+        return None
